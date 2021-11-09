@@ -23,23 +23,20 @@ class Scores():
         self.TF = 0
         self.sent_location = 0
         self.cue = 0
-        # self.title = 0 Dropped
         self.proper_noun = 0
         self.co_occour = 0
         self.sent_similarity = 0  # Semantic similarity
         self.num_val = 0
-        # self.font_style = 0 Dropped
-        # self.lexycal_similarity = 0 Dropped due to redundancy
         self.TF_ISF_IDF = 0
-        self.text_rank = 0 
+        self.sent_rank = 0  # Text rank
         self.sent_length = 0
         self.pos_keywords = 0
         self.neg_keywords = 0
-        self.busy_path = 0
-        self.aggregate_simm = 0
-        self.word_simm_sents = 0
-        self.word_simm_par = 0
-        self.IQS = 0
+        # self.busy_path = 0
+        # self.aggregate_simm = 0
+        # self.word_simm_sents = 0
+        # self.word_simm_par = 0
+        # self.IQS = 0
         self.thematic_features = 0
         self.named_entities = 0
 
@@ -120,22 +117,70 @@ class Scores():
         self.TF_ISF_IDF = TF_ISF_IDF
         return
 
-    def total_score(self):
+    def set_sentRank(self, sentence, rankings):
+        reconstructed_sentence = ''
+        for token in sentence:
+            reconstructed_sentence += token + ' '
+        reconstructed_sentence = reconstructed_sentence.casefold()
+        for chunk in rankings:
+            if chunk in reconstructed_sentence:
+                self.sent_rank += rankings[chunk]
+
+    def set_sentLength(self, sentence, mean_length):
+        # a parabola is used as an implicit treshold
+        sent_len = len(sentence)
+        if sent_len < 2*mean_length:  # otherwise 0
+            self.sent_length = (-(1/mean_length**2))*(sent_len**2) + \
+                               (2/mean_length)*sent_len
+
+    def set_posnegScore(self, sentence, summary_tf):
+        mean = sum(summary_tf.values())/len(summary_tf)
+        for token in sentence:
+            norm_token = token.casefold()
+            if norm_token in summary_tf:
+                token_freq = summary_tf[norm_token]
+                if token_freq > 2*mean:
+                    self.pos_keywords += 1.1*token_freq
+                elif token_freq < 0.25*mean:
+                    self.neg_keywords += -10*token_freq
+                else:
+                    self.pos_keywords += token_freq
+        return
+
+    def set_thematicWordsScore(self, sentence, sent_id, doc_tf):
+        mean = sum(doc_tf.values())/len(doc_tf)
+        for token in sentence:
+            norm_token = token.casefold()
+            if doc_tf[norm_token] > 2*mean:  # Is thematic
+                self.thematic_features += doc_tf[norm_token]
+        return
+
+    def set_namedEntitiesScore(self, sentence, termFreqDict, neList):
+        for token in sentence:
+            norm_token = token.casefold()
+            if norm_token in neList:
+                self.named_entities += termFreqDict[norm_token]
+        return
+
+    def total_score(self, show=False):
         tot = 0
         for el in self.__dict__:
             tot += self.__dict__[el]
-        self.Print()
-        print('Tot Score = %0.4f' % tot)
+        if show:
+            print('Tot Score = %0.4f' % tot)
         return tot
 
-    def Print(self):
+    def print_scores(self, total=True):
         for key in self.__dict__:
-            print(key, '\n')
+            print(key, '->', self.__dict__[key])
+        if total:
+            print('Tot Score = %0.4f' % self.total_score())
 
 
 class Sentence():
-    def __init__(self, sent):
-        self.loc = 0
+    def __init__(self, sent, sent_id):
+        self.id = sent_id
+        self.loc = int(sent_id.split('_')[1])
         self.tokenized = sent
         self.scores = Scores()
 
@@ -145,10 +190,16 @@ class Sentence():
     def print_Scores(self):
         self.scores.Print()
 
-    def compute_Scores(self, doc_term_freq, prop_nouns, simScore, nums,
-                       DF_dict, reset=True):
+    def compute_Scores(self, attributes, reset=True):
         if reset:
             self.scores.zero()  # Reset to avoid update of loaded values
+
+        doc_term_freq = attributes['termFrequencies']
+        prop_nouns = attributes['properNouns']
+        simScore = attributes['similarityScore']
+        nums = attributes['numbers']
+        DF_dict = attributes['documentsFrequencies']
+        nameEnt = attributes['namedEntities']
 
         # TF score
         self.scores.set_TF(self.tokenized, doc_term_freq)
@@ -168,21 +219,62 @@ class Sentence():
         # TF-IDF score
         self.scores.set_TF_ISF_IDF(self.tokenized, doc_term_freq, DF_dict)
 
+        # Sentence Rank
+        self.scores.set_sentRank(self.tokenized, attributes['sentenceRanks'])
+
+        # Sentence length Score
+        self.scores.set_sentLength(self.tokenized,
+                                   attributes['meanSentenceLength'])
+
+        # Positive-Negative keywords scoring
+        self.scores.set_posnegScore(self.tokenized, attributes['highlightsTF'])
+
+        # Thematic words
+        self.scores.set_thematicWordsScore(self.tokenized, self.id,
+                                           doc_term_freq)
+
+        # Named entities score
+        self.scores.set_namedEntitiesScore(self.tokenized, doc_term_freq,
+                                           nameEnt)
+
+    def get_total_score(self):
+        return self.scores.total_score()
+
     def info(self, verbose=True):
         if verbose:
             print('Tokens in sentence: {}'.format(len(self.tokenized)))
         return len(self.tokenized)
 
+    def text(self):
+        reconstructed_sentence = ''
+        for token in self.tokenized:
+            reconstructed_sentence += '{} '.format(token)
+        return reconstructed_sentence
+
+    def print_scores(self, text=False):
+        print('\nSentence id {}'.format(self.id))
+        if text:
+            reconstructed_sent = ''
+            for token in self.tokenized:
+                reconstructed_sent += '{} '.format(token)
+            print(reconstructed_sent)
+        self.scores.print_scores()
+
 
 class Document():
     def __init__(self, doc, doc_id, high, load=False):
+        self.id = doc_id
         self.sentences = {}
         self.highlights = None
-        self.add_highlights(high)
         self.termFrequencies = {}
+        self.highlightsTF = {}
         self.sentSimilarities = {}
+        self.sentRanks = {}
         self.nums = []
+        self.mean_length = 0
         self.tot_tokens = 0
+
+        self.add_highlights(high)
 
         if not load:
             for sentence in doc:  # Must be pre-processed by spacy pipeline
@@ -205,10 +297,10 @@ class Document():
         else:
             # Push sentence into dictionary and organize by internal ID
             sent_id = doc_id + '_{}'.format(len(self.sentences))
-            self.sentences[sent_id] = Sentence(sent)
+            self.sentences[sent_id] = Sentence(sent, sent_id)
 
             # Save sentence location
-            self.sentences[sent_id].loc = len(self.sentences) - 1
+            # self.sentences[sent_id].loc = len(self.sentences) - 1
 
             # Update term frequency
             for token in sent:
@@ -224,21 +316,72 @@ class Document():
             return
         else:
             self.highlights = high
+            for token in high:
+                norm_token = token.casefold()
+                if norm_token not in self.highlightsTF:
+                    self.highlightsTF[norm_token] = 1
+                else:
+                    self.highlightsTF[norm_token] += 1
+            self.highlightsTF = dict(sorted(self.highlightsTF.items(),
+                                     key=lambda x: x[1]))
 
-    def compute_scores(self, properNouns, DF_dict):
+    def add_sentRank(self, text, rank):
+        if isinstance(rank, float) and isinstance(text, str):
+            if text not in self.sentRanks:
+                self.sentRanks[text] = rank
+            else:
+                print('Entry \"{}\" already exist in record, skipping.'
+                      .format(text))
+                # Maybe try with accumulating them and see if rouge score up
+        else:
+            print('Expected text and rank to be of type string and float, but '
+                  'got input of type {} and {}'.format(type(text), type(rank)))
+            return
+
+    def compute_scores(self, properNouns, DF_dict, namedEntities):
+        attributes = {'termFrequencies': self.termFrequencies,
+                      'properNouns': properNouns,
+                      'numbers': self.nums,
+                      'documentsFrequencies': DF_dict,
+                      'sentenceRanks': self.sentRanks,
+                      'meanSentenceLength': self.mean_length,
+                      'highlightsTF': self.highlightsTF,
+                      'namedEntities': namedEntities}
         for sentence in self.sentences:
-            simScore = self.sentSimilarities[sentence]
-            self.sentences[sentence].compute_Scores(self.termFrequencies,
-                                                    properNouns,
-                                                    simScore,
-                                                    self.nums,
-                                                    DF_dict)
+            attributes['similarityScore'] = self.sentSimilarities[sentence]
+            self.sentences[sentence].compute_Scores(attributes)
 
     def add_sentSimm(self, simmDict):
         self.sentSimilarities.update(simmDict)
 
     def add_nums(self, numList):
         self.nums.append(numList)
+
+    def compute_meanLength(self):
+        for sent in self.sentences:
+            self.mean_length += len(self.sentences[sent].tokenized)
+        self.mean_length = self.mean_length/len(self.sentences)
+
+    def get_total_scores(self, show=False):
+        scores = {}
+        for sentence in self.sentences.values():
+            scores[sentence.id] = sentence.get_total_score()
+        ordered_scores = dict(sorted(scores.items(),
+                                     key=lambda x: x[1],
+                                     reverse=True))
+        if show:
+            for el in ordered_scores:
+                print(el, ' -> ', ordered_scores[el])
+        return ordered_scores
+
+    def get_sentence(self, sentence_id, text=False):
+        if sentence_id not in self.sentences.keys():
+            print('No sentence {} in dictionary'.format(sentence_id))
+            return None
+        if text:
+            return self.sentences.get(sentence_id).text()
+        else:
+            return self.sentences.get(sentence_id)
 
     def info(self, verbose=True):
         num_sents = len(self.sentences)
@@ -253,6 +396,11 @@ class Document():
                   .format(self.tot_tokens, av_tokens, num_sents, num_high))
         return {'tot_tokens': self.tot_tokens, 'av_tokens': av_tokens,
                 'num_sents': num_sents, 'num_high': num_high}
+
+    def print_scores(self):
+        print('\nDocument {}'.format(self.id), '-'*(80-len(self.id)))
+        for sentence in self.sentences.values():
+            sentence.print_scores()
 
 
 class Dataset():
@@ -321,24 +469,28 @@ class Dataset():
                 high = key['highlights']
 
                 tokenized_article = nlp(key['article'])  # Spacy object
+
+                '''
                 for phrase in tokenized_article._.phrases:
                     print(phrase.text)
-                    print(phrase.rank, phrase.count)
+                    print(phrase.rank, '\n', phrase.text)
                     print(phrase.chunks)
+                '''
+
                 segmented_document = []
                 num_tokens = []
 
                 for sentence in tokenized_article.sents:
                     tokenized_sent = []
                     for token in sentence:
-                        if not token.is_punct:
+                        if not token.is_punct:  # Do not consider punctuature
                             norm_token = token.text.casefold()
                             tokenized_sent.append(token.text)  # Try with lemma
                             if token.pos_ == 'PROPN' and \
-                               token.text not in self.proper_nouns:
-                                self.proper_nouns.append(token.text.casefold())
+                               norm_token not in self.proper_nouns:
+                                self.proper_nouns.append(norm_token)
                             if token.like_num:  # Record numerical token
-                                num_tokens.append(token.text.casefold())
+                                num_tokens.append(norm_token)
 
                             # Frequency among documents
                             if doc_id not in self.DF:
@@ -349,13 +501,22 @@ class Dataset():
                     segmented_document.append(tokenized_sent)  # Text object
                 self.add_document(segmented_document, doc_id, high)
                 self.documents[doc_id].add_nums(num_tokens)
+                self.documents[doc_id].compute_meanLength()
+
+                # Record sentence ranking
+                for phrase in tokenized_article._.phrases:
+                    if phrase.rank > 0:
+                        norm_text = phrase.text.casefold()
+                        self.documents[doc_id].add_sentRank(norm_text,
+                                                            phrase.rank)
 
                 # Record named entities
                 for ent in tokenized_article.ents:
-                    if ent.text not in self.named_entities:
-                        self.named_entities.append(ent.text.casefold())
+                    norm_ent = ent.text.casefold()
+                    if norm_ent not in self.named_entities:
+                        self.named_entities.append(norm_ent)
 
-                # Similarity among sentences
+                # Similarity among sentences in same document
                 sent_sim = {}
                 idx = 0
                 for sentence in tokenized_article.sents:
@@ -381,7 +542,9 @@ class Dataset():
         with tqdm(total=len(self.documents)) as pbar_proc:
             for doc in self.documents:
                 pbar_proc.set_description('Computing scores: ')
-                self.documents[doc].compute_scores(self.proper_nouns, self.DF)
+                self.documents[doc].compute_scores(self.proper_nouns,
+                                                   self.DF,
+                                                   self.named_entities)
                 pbar_proc.update(1)
         pbar_proc.close()
 
@@ -394,10 +557,40 @@ class Dataset():
                 print('-'*80, '\nDocument ID: {}'.format(doc_id))
                 self.documents[doc_id].info()
 
+    def print_scores(self):
+        for doc in self.documents.values():
+            doc.print_scores()
+
+    def summarization(self, th=0):
+        summarized_dataset = {}
+        for doc in self.documents.values():
+            ordered_scores = doc.get_total_scores()
+            ordered_doc = ''
+            document = self.documents[doc.id]
+            for sent_id in ordered_scores:
+                if ordered_scores[sent_id] > th:
+                    sentence = document.get_sentence(sent_id, True)
+                    ordered_doc += '{}\n'.format(sentence)
+            summarized_dataset[doc.id] = ordered_doc
+        return summarized_dataset
+
+    def rouge_computation(self, n, th=0):
+        summarization = self.summarization(th)
+        for doc_id, doc in summarization.items():
+            hyp = doc.split('\n')
+            ref = self.documents[doc_id].highlights.split('\n')
+            print(hyp, '\n*', ref, '\n\n')
+        return
+
 
 if __name__ == '__main__':
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])
+
+    # CNN_summarized = CNN_processed.summarization()
+    CNN_processed.rouge_computation(2)
+    # CNN_processed.print_scores()
+    # CNN_processed.print_scores()
     # CNN_processed.info()
     # CNN_processed.saveToDisk()
