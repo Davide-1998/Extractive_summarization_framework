@@ -541,7 +541,7 @@ class Dataset():
 
         with tqdm(total=len(self.documents)) as pbar_proc:
             for doc in self.documents:
-                pbar_proc.set_description('Computing scores: ')
+                pbar_proc.set_description('computing scores: ')
                 self.documents[doc].compute_scores(self.proper_nouns,
                                                    self.DF,
                                                    self.named_entities)
@@ -574,13 +574,63 @@ class Dataset():
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
-    def rouge_computation(self, n, th=0):
+    def sentence_ngram_match_count(self, n, hyp_tokens, ref_tokens):
+        len_hyp = len(hyp_tokens)
+        len_ref = len(ref_tokens)
+        if len_hyp < len_ref:
+            while len_hyp - len_ref != 0:  # Add values
+                hyp_tokens.append(' ')
+                len_hyp += 1
+        elif len_hyp > len_ref:
+            hyp_tokens = hyp_tokens[:len_ref]  # Crop excess
+
+        # N-gram computation and storing in list of lists
+        ngram_hyp = []
+        ngram_ref = []
+        i = 0
+        while i+n < len_ref:
+            ngram_hyp.append(hyp_tokens[i:i+n])
+            ngram_ref.append(ref_tokens[i:i+n])
+            i += 1
+
+        # Matching computation
+        count = 0
+        flag = False
+        for ngramRef in ngram_ref:
+            ngramHyp = ngram_hyp[ngram_ref.index(ngramRef)]
+            for i in range(n):
+                if ngramRef[i] != ngramHyp[i]:
+                    flag = True
+                    break
+            if not flag:
+                count += 1
+            else:
+                flag = False
+        return count
+
+    def rouge_computation(self, n, th=0, show=False):
         summarization = self.summarization(th)
+        summary_match_count = 0
         for doc_id, doc in summarization.items():
+            # Split summaries in sentences
             hyp = doc.split('\n')
             ref = self.documents[doc_id].highlights.split('\n')
-            print(hyp, '\n*', ref, '\n\n')
-        return
+
+            # Split sentences in tokens
+            ref = [sent.split(' ') for sent in ref]
+            hyp = [sent.split(' ') for sent in hyp][:len(ref)]  # to compare
+
+            # Count ngram matching per sentence
+            for i in range(len(ref)):
+                summary_match_count += self.sentence_ngram_match_count(n,
+                                                                       hyp[i],
+                                                                       ref[i])
+            # Rouge-N
+            ngram_count = sum(len(i) for i in ref)
+            rouge_n = summary_match_count/ngram_count
+            if show:
+                print('Rouge-{}: {:0.4f}'.format(n, rouge_n))
+        return rouge_n
 
 
 if __name__ == '__main__':
@@ -589,7 +639,7 @@ if __name__ == '__main__':
     CNN_processed.process_dataset(CNN_dataset['train'])
 
     # CNN_summarized = CNN_processed.summarization()
-    CNN_processed.rouge_computation(2)
+    CNN_processed.rouge_computation(2, show=True)
     # CNN_processed.print_scores()
     # CNN_processed.print_scores()
     # CNN_processed.info()
