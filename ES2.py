@@ -11,7 +11,7 @@ import pytextrank
 # train, test, validation.
 # Each of these keys lead to a dictionary having as keys:
 # id, article, highlights
-# Article is unmarized, hilights is the target
+# Article is unsummarized, hilights is the target
 
 # Refs for dataset:
 # https://huggingface.co/datasets/cnn_dailymail
@@ -140,11 +140,11 @@ class Scores():
             if norm_token in summary_tf:
                 token_freq = summary_tf[norm_token]
                 if token_freq > 2*mean:
-                    self.pos_keywords += 1.1*token_freq
+                    self.pos_keywords += 1.1*token_freq/mean
                 elif token_freq < 0.25*mean:
-                    self.neg_keywords += -10*token_freq
+                    self.neg_keywords += -10*token_freq/mean
                 else:
-                    self.pos_keywords += token_freq
+                    self.pos_keywords += token_freq/mean
         return
 
     def set_thematicWordsScore(self, sentence, sent_id, doc_tf):
@@ -162,19 +162,24 @@ class Scores():
                 self.named_entities += termFreqDict[norm_token]
         return
 
-    def total_score(self, show=False):
-        tot = 0
-        for el in self.__dict__:
-            tot += self.__dict__[el]
-        if show:
-            print('Tot Score = %0.4f' % tot)
-        return tot
+    # def total_score(self, show=False):
+        # tot = 0
+        # for el in self.__dict__:
+        #     tot += self.__dict__[el]
+        # return sum(self.__dict__.values())
 
-    def print_scores(self, total=True):
-        for key in self.__dict__:
-            print(key, '->', self.__dict__[key])
+    def get_total(self, show=False, getVal=True):
+        if show:
+            print('Tot Score = %0.4f' % self.get_total())
+        if getVal:
+            return sum(self.__dict__.values())
+
+    def print_total_scores(self, detail=True, total=True):
+        if detail:
+            for key in self.__dict__:
+                print(key, '->', self.__dict__[key])
         if total:
-            print('Tot Score = %0.4f' % self.total_score())
+            self.get_total(show=True, getVal=False)
 
 
 class Sentence():
@@ -186,9 +191,6 @@ class Sentence():
 
     def print_Sentence(self):  # Only for debug purposes -> too much verbose
         print([self.tokenized])
-
-    def print_Scores(self):
-        self.scores.Print()
 
     def compute_Scores(self, attributes, reset=True):
         if reset:
@@ -238,7 +240,7 @@ class Sentence():
                                            nameEnt)
 
     def get_total_score(self):
-        return self.scores.total_score()
+        return self.scores.get_total()
 
     def info(self, verbose=True):
         if verbose:
@@ -251,14 +253,17 @@ class Sentence():
             reconstructed_sentence += '{} '.format(token)
         return reconstructed_sentence
 
-    def print_scores(self, text=False):
+    def print_scores(self, text=False, onlyTotal=True):
         print('\nSentence id {}'.format(self.id))
         if text:
             reconstructed_sent = ''
             for token in self.tokenized:
                 reconstructed_sent += '{} '.format(token)
             print(reconstructed_sent)
-        self.scores.print_scores()
+        if onlyTotal:
+            self.scores.print_total_scores(detail=False, total=True)
+        else:
+            self.scores.print_total_scores(detail=True, total=True)
 
 
 class Document():
@@ -397,10 +402,10 @@ class Document():
         return {'tot_tokens': self.tot_tokens, 'av_tokens': av_tokens,
                 'num_sents': num_sents, 'num_high': num_high}
 
-    def print_scores(self):
-        print('\nDocument {}'.format(self.id), '-'*(80-len(self.id)))
+    def print_scores(self, _text=False, _onlyTotal=True):
+        print('\nDocument {} {}'.format(self.id, '-'*(79-len(self.id))))
         for sentence in self.sentences.values():
-            sentence.print_scores()
+            sentence.print_scores(text=_text, onlyTotal=_onlyTotal)
 
 
 class Dataset():
@@ -557,9 +562,9 @@ class Dataset():
                 print('-'*80, '\nDocument ID: {}'.format(doc_id))
                 self.documents[doc_id].info()
 
-    def print_scores(self):
+    def print_scores(self, text=False, onlyTotal=True):
         for doc in self.documents.values():
-            doc.print_scores()
+            doc.print_scores(_text=text, _onlyTotal=onlyTotal)
 
     def summarization(self, th=0):
         summarized_dataset = {}
@@ -574,62 +579,56 @@ class Dataset():
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
-    def sentence_ngram_match_count(self, n, hyp_tokens, ref_tokens):
-        len_hyp = len(hyp_tokens)
-        len_ref = len(ref_tokens)
-        if len_hyp < len_ref:
-            while len_hyp - len_ref != 0:  # Add values
-                hyp_tokens.append(' ')
-                len_hyp += 1
-        elif len_hyp > len_ref:
-            hyp_tokens = hyp_tokens[:len_ref]  # Crop excess
-
-        # N-gram computation and storing in list of lists
-        ngram_hyp = []
-        ngram_ref = []
-        i = 0
-        while i+n < len_ref:
-            ngram_hyp.append(hyp_tokens[i:i+n])
-            ngram_ref.append(ref_tokens[i:i+n])
-            i += 1
-
-        # Matching computation
-        count = 0
-        flag = False
-        for ngramRef in ngram_ref:
-            ngramHyp = ngram_hyp[ngram_ref.index(ngramRef)]
-            for i in range(n):
-                if ngramRef[i] != ngramHyp[i]:
-                    flag = True
-                    break
-            if not flag:
-                count += 1
-            else:
-                flag = False
-        return count
-
     def rouge_computation(self, n, th=0, show=False):
         summarization = self.summarization(th)
-        summary_match_count = 0
         for doc_id, doc in summarization.items():
             # Split summaries in sentences
             hyp = doc.split('\n')
             ref = self.documents[doc_id].highlights.split('\n')
 
-            # Split sentences in tokens
+            # Split sentences in tokens and retain same number of sentences
             ref = [sent.split(' ') for sent in ref]
             hyp = [sent.split(' ') for sent in hyp][:len(ref)]  # to compare
 
-            # Count ngram matching per sentence
-            for i in range(len(ref)):
-                summary_match_count += self.sentence_ngram_match_count(n,
-                                                                       hyp[i],
-                                                                       ref[i])
+            # n-gram merging
+            for summary in [ref, hyp]:
+                for sentence in summary:
+                    temp = []
+                    i = 0
+                    while i+n < len(sentence):
+                        temp.append(sentence[i:i+n])
+                        i += 1
+                    summary[summary.index(sentence)] = temp
+
+            # Count ngram matching
+            summary_match_count = 0
+            for sentence in hyp:
+                ref_ngram_list = ref[hyp.index(sentence)]
+                for ngram in sentence:
+                    if ngram in ref_ngram_list:
+                        summary_match_count += 1
+
             # Rouge-N
-            ngram_count = sum(len(i) for i in ref)
-            rouge_n = summary_match_count/ngram_count
+            ref_ngram_count = sum(len(i) for i in ref)
+            rouge_n = summary_match_count/ref_ngram_count
+
+            # Recall -> number of words captured by summary wrt reference
+            overlap_ngrams = 0
+            for sentence in hyp:
+                ref_sentence = ref[hyp.index(sentence)]
+                for token in sentence:
+                    if token in ref_sentence:
+                        overlap_ngrams += 1
+            rouge_recall = overlap_ngrams / ref_ngram_count
+
+            # Precision -> how much of the summarization is useful
+            rouge_precision = overlap_ngrams / sum(len(i) for i in hyp)
+
             if show:
-                print('Rouge-{}: {:0.4f}'.format(n, rouge_n))
+                print('Document id: {}'.format(doc_id))
+                print(' Rouge-{}: {:0.4f}'.format(n, rouge_n))
+                print(' Rouge Recall: {:0.4f}'.format(rouge_recall))
+                print(' Rouge Precision: {:0.4f}\n'.format(rouge_precision))
         return rouge_n
 
 
@@ -638,6 +637,7 @@ if __name__ == '__main__':
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])
 
+    # CNN_processed.print_scores(onlyTotal=False)
     # CNN_summarized = CNN_processed.summarization()
     CNN_processed.rouge_computation(2, show=True)
     # CNN_processed.print_scores()
