@@ -52,12 +52,14 @@ class Scores():
         for token in token_list:
             self.TF += term_freq_dict[token.casefold()]
 
-    def set_sent_location(self, sent_id, ED=False, NB1=False,
-                          NB2=False, NB3=False, FaR=False):
-        if [ED, NB1, NB2, NB3, FaR].count(True) != 1:
+    def set_sent_location(self, sent_id, sents_len, th=5,
+                          loc_scores=[0, 0, 0, 0, 1]):
+        [ED, NB1, NB2, NB3, FaR] = loc_scores
+        if [ED, NB1, NB2, NB3, FaR].count(1) != 1:
             print('Multiple or none options setted, score of 0 attributed')
             self.sent_location = 0
         else:
+            sent_id = int(sent_id.split('_')[1])
             # ED -> Edmundson -> mostly works for news data
             if ED:
                 if sent_id < 2:
@@ -67,19 +69,17 @@ class Scores():
 
             # NB1 -> Nobata method 1
             if NB1:
-                if sent_id == 0:  # First sentence
+                if sent_id < th:  # First sentence
                     self.sent_location = 1
-                else:
-                    self.sent_location = 0
 
             # NB2 -> Nobata method 2
             if NB2:
-                if sent_id == 0:
-                    self.sent_location = 1
-                else:
-                    self.sent_location = 1-(sent_id * 0.01)
+                self.sent_location = 1/(sent_id + 1)
 
             # NB3 -> Nobata method 3
+            if NB3:
+                sent_id += 1  # Avoids division by 0
+                self.sent_location = max(1/sent_id, 1/(sents_len-sent_id+1))
 
             # FaR -> Fattah and Ren
             if FaR:
@@ -88,16 +88,28 @@ class Scores():
                 else:
                     self.sent_location = 0
 
-    def set_proper_noun(self, sent, prop_noun_list, term_freq_dict):
+    def set_proper_noun(self, sentence, prop_noun_list, term_freq_dict):
+        # Nobata et al 2001
         if self.proper_noun != 0:
             print('Proper noun will be overwritten')
             self.proper_noun = 0
-        for token in sent:
+        for token in sentence:
             if token.casefold() in prop_noun_list:
                 self.proper_noun += term_freq_dict[token.casefold()]
 
-    def set_similarity_score(self, score):
-        self.sent_similarity = score
+    def set_co_occour(self, tokenized_sentence, summary, termFreqDict):
+        co_occurrence = 0
+        for token in tokenized_sentence:
+            norm_token = token.casefold()
+            co_occurrence = summary.count(token) + summary.count(norm_token)
+            co_occurrence *= termFreqDict[norm_token]
+            self.co_occour += co_occurrence
+
+    def set_similarity_score(self, sent_id, score):
+        for key in score.keys():
+            if sent_id == key.split(':')[0]:
+                # Cumulative sum
+                self.sent_similarity += score[key]
 
     def set_numScore(self, sent, freqDict, numList):
         for token in sent:
@@ -133,6 +145,7 @@ class Scores():
             self.sent_length = (-(1/mean_length**2))*(sent_len**2) + \
                                (2/mean_length)*sent_len
 
+    '''
     def set_posnegScore(self, sentence, summary_tf):
         mean = sum(summary_tf.values())/len(summary_tf)
         for token in sentence:
@@ -145,7 +158,13 @@ class Scores():
                     self.neg_keywords += -10*token_freq/mean
                 else:
                     self.pos_keywords += token_freq/mean
-        return
+    '''
+
+    def set_posnegScore(self, sentence, summary_tf, highlightsOC):
+        for token in sentence:
+            if token in highlightsOC:
+                self.pos_keywords += sentence.count(token)*highlightsOC[token]
+        self.pos_keywords /= len(sentence)
 
     def set_thematicWordsScore(self, sentence, sent_id, doc_tf):
         mean = sum(doc_tf.values())/len(doc_tf)
@@ -153,7 +172,6 @@ class Scores():
             norm_token = token.casefold()
             if doc_tf[norm_token] > 2*mean:  # Is thematic
                 self.thematic_features += doc_tf[norm_token]
-        return
 
     def set_namedEntitiesScore(self, sentence, termFreqDict, neList):
         for token in sentence:
@@ -161,12 +179,6 @@ class Scores():
             if norm_token in neList:
                 self.named_entities += termFreqDict[norm_token]
         return
-
-    # def total_score(self, show=False):
-        # tot = 0
-        # for el in self.__dict__:
-        #     tot += self.__dict__[el]
-        # return sum(self.__dict__.values())
 
     def get_total(self, show=False, getVal=True):
         if show:
@@ -185,20 +197,20 @@ class Scores():
 class Sentence():
     def __init__(self, sent, sent_id):
         self.id = sent_id
-        self.loc = int(sent_id.split('_')[1])
         self.tokenized = sent
         self.scores = Scores()
 
     def print_Sentence(self):  # Only for debug purposes -> too much verbose
         print([self.tokenized])
 
-    def compute_Scores(self, attributes, reset=True):
+    def compute_Scores(self, attributes, loc_th=5, loc_scores=[0, 0, 1, 0, 0],
+                       reset=True):
         if reset:
             self.scores.zero()  # Reset to avoid update of loaded values
 
         doc_term_freq = attributes['termFrequencies']
         prop_nouns = attributes['properNouns']
-        simScore = attributes['similarityScore']
+        simScore = attributes['similarityScores']
         nums = attributes['numbers']
         DF_dict = attributes['documentsFrequencies']
         nameEnt = attributes['namedEntities']
@@ -207,13 +219,19 @@ class Sentence():
         self.scores.set_TF(self.tokenized, doc_term_freq)
 
         # Sentence location score
-        self.scores.set_sent_location(self.loc, FaR=True)
+        sents_num = attributes['sents_num']
+        self.scores.set_sent_location(self.id, sents_len=sents_num, th=loc_th,
+                                      loc_scores=loc_scores)
 
         # Proper noun score
         self.scores.set_proper_noun(self.tokenized, prop_nouns, doc_term_freq)
 
+        # Word Co-occurence
+        self.scores.set_co_occour(self.tokenized, attributes['summary'],
+                                  doc_term_freq)
+
         # Similarity Score
-        self.scores.set_similarity_score(simScore)
+        self.scores.set_similarity_score(self.id, simScore)
 
         # Numerical Score -> if number exist in sentence
         self.scores.set_numScore(self.tokenized, doc_term_freq, nums)
@@ -229,7 +247,9 @@ class Sentence():
                                    attributes['meanSentenceLength'])
 
         # Positive-Negative keywords scoring
-        self.scores.set_posnegScore(self.tokenized, attributes['highlightsTF'])
+        self.scores.set_posnegScore(self.tokenized,
+                                    attributes['highlightsTF'],
+                                    attributes['highlightsOC'])
 
         # Thematic words
         self.scores.set_thematicWordsScore(self.tokenized, self.id,
@@ -273,6 +293,7 @@ class Document():
         self.highlights = None
         self.termFrequencies = {}
         self.highlightsTF = {}
+        self.HF = {}
         self.sentSimilarities = {}
         self.sentRanks = {}
         self.nums = []
@@ -304,9 +325,6 @@ class Document():
             sent_id = doc_id + '_{}'.format(len(self.sentences))
             self.sentences[sent_id] = Sentence(sent, sent_id)
 
-            # Save sentence location
-            # self.sentences[sent_id].loc = len(self.sentences) - 1
-
             # Update term frequency
             for token in sent:
                 token = token.casefold()
@@ -321,6 +339,7 @@ class Document():
             return
         else:
             self.highlights = high
+            # highlights term frequencies
             for token in high:
                 norm_token = token.casefold()
                 if norm_token not in self.highlightsTF:
@@ -329,6 +348,23 @@ class Document():
                     self.highlightsTF[norm_token] += 1
             self.highlightsTF = dict(sorted(self.highlightsTF.items(),
                                      key=lambda x: x[1]))
+            # highlights word occurrence
+            high_sentences = high.splitlines()
+            updates = {}
+            for sentence in high_sentences:
+                for token in high.split(' '):
+                    updates[token] = False
+                    if token in sentence and not updates[token]:
+                        if token not in self.HF:
+                            self.HF[token] = 1
+                        else:
+                            self.HF[token] += 1
+                        updates[token] = True
+                updates[token] = False  # Ensures each token is counted once
+
+            # Normalization of HF
+            for key in self.HF:
+                self.HF[key] /= len(self.HF)
 
     def add_sentRank(self, text, rank):
         if isinstance(rank, float) and isinstance(text, str):
@@ -345,15 +381,19 @@ class Document():
 
     def compute_scores(self, properNouns, DF_dict, namedEntities):
         attributes = {'termFrequencies': self.termFrequencies,
+                      'sents_num': len(self.sentences),
                       'properNouns': properNouns,
+                      'similarityScores': self.sentSimilarities,
+                      'summary': self.highlights,
                       'numbers': self.nums,
                       'documentsFrequencies': DF_dict,
                       'sentenceRanks': self.sentRanks,
                       'meanSentenceLength': self.mean_length,
                       'highlightsTF': self.highlightsTF,
+                      'highlightsOC': self.HF,
                       'namedEntities': namedEntities}
         for sentence in self.sentences:
-            attributes['similarityScore'] = self.sentSimilarities[sentence]
+            # attributes['similarityScore'] = self.sentSimilarities[sentence]
             self.sentences[sentence].compute_Scores(attributes)
 
     def add_sentSimm(self, simmDict):
@@ -475,13 +515,6 @@ class Dataset():
 
                 tokenized_article = nlp(key['article'])  # Spacy object
 
-                '''
-                for phrase in tokenized_article._.phrases:
-                    print(phrase.text)
-                    print(phrase.rank, '\n', phrase.text)
-                    print(phrase.chunks)
-                '''
-
                 segmented_document = []
                 num_tokens = []
 
@@ -527,14 +560,19 @@ class Dataset():
                 for sentence in tokenized_article.sents:
                     sent_str = sentence.text.casefold()
                     sent_id = doc_id + '_{}'.format(idx)
-                    sent_sim[sent_id] = 0
+                    # sent_sim[sent_id] = 0
+                    sent2_idx = 0
                     for sent2 in tokenized_article.sents:
                         if sent2.text.casefold() != sent_str:
-                            sent_sim[sent_id] += sentence.similarity(sent2)
+                            index = '{}:{}'.format(sent_id, sent2_idx)
+                            # char-based length
+                            mlen = max(len(sentence), len(sent2))
+                            sent_sim[index] = sentence.similarity(sent2)/mlen
+                        sent2_idx += 1
                     idx += 1
-                tot_sim = sum(sent_sim.values())
-                for sent in sent_sim:
-                    sent_sim[sent] /= tot_sim
+                # tot_sim = sum(sent_sim.values())
+                # for sent in sent_sim:
+                #     sent_sim[sent] /= tot_sim
                 self.documents[doc_id].add_sentSimm(sent_sim)
 
                 pbar_load.update(1)
@@ -613,6 +651,7 @@ class Dataset():
             rouge_n = summary_match_count/ref_ngram_count
 
             # Recall -> number of words captured by summary wrt reference
+            '''
             overlap_ngrams = 0
             for sentence in hyp:
                 ref_sentence = ref[hyp.index(sentence)]
@@ -620,14 +659,15 @@ class Dataset():
                     if token in ref_sentence:
                         overlap_ngrams += 1
             rouge_recall = overlap_ngrams / ref_ngram_count
+            '''
 
             # Precision -> how much of the summarization is useful
-            rouge_precision = overlap_ngrams / sum(len(i) for i in hyp)
-
+            hyp_ngram_count = sum(len(i) for i in hyp)
+            rouge_precision = summary_match_count / hyp_ngram_count
             if show:
                 print('Document id: {}'.format(doc_id))
                 print(' Rouge-{}: {:0.4f}'.format(n, rouge_n))
-                print(' Rouge Recall: {:0.4f}'.format(rouge_recall))
+                # print(' Rouge Recall: {:0.4f}'.format(rouge_recall))
                 print(' Rouge Precision: {:0.4f}\n'.format(rouge_precision))
         return rouge_n
 
@@ -637,10 +677,4 @@ if __name__ == '__main__':
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])
 
-    # CNN_processed.print_scores(onlyTotal=False)
-    # CNN_summarized = CNN_processed.summarization()
     CNN_processed.rouge_computation(2, show=True)
-    # CNN_processed.print_scores()
-    # CNN_processed.print_scores()
-    # CNN_processed.info()
-    # CNN_processed.saveToDisk()
