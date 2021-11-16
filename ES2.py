@@ -50,9 +50,10 @@ class Scores():
             print('TF value will be overwritten')
             self.TF = 0
         for token in token_list:
-            self.TF += term_freq_dict[token.casefold()]
+            self.TF += term_freq_dict.get(token.casefold(), 0)
+        # self.TF /= len(token_list)
 
-    def set_sent_location(self, sent_id, sents_len, th=5,
+    def set_sent_location(self, sent_id, sent_len, th=5,
                           loc_scores=[0, 0, 0, 0, 1]):
         [ED, NB1, NB2, NB3, FaR] = loc_scores
         if [ED, NB1, NB2, NB3, FaR].count(1) != 1:
@@ -79,7 +80,7 @@ class Scores():
             # NB3 -> Nobata method 3
             if NB3:
                 sent_id += 1  # Avoids division by 0
-                self.sent_location = max(1/sent_id, 1/(sents_len-sent_id+1))
+                self.sent_location = max(1/sent_id, 1/(sent_len-sent_id+1))
 
             # FaR -> Fattah and Ren
             if FaR:
@@ -88,35 +89,42 @@ class Scores():
                 else:
                     self.sent_location = 0
 
-    def set_proper_noun(self, sentence, prop_noun_list, term_freq_dict):
+    def set_proper_noun(self, sentence, prop_noun_list, tf_dict):
         # Nobata et al 2001
         if self.proper_noun != 0:
             print('Proper noun will be overwritten')
             self.proper_noun = 0
         for token in sentence:
             if token.casefold() in prop_noun_list:
-                self.proper_noun += term_freq_dict[token.casefold()]
+                self.proper_noun += tf_dict[token.casefold()]
 
-    def set_co_occour(self, tokenized_sentence, summary, termFreqDict):
+    def set_co_occour(self, tokenized_sentence, summary, tf_dict):
         co_occurrence = 0
+        summary = summary.casefold()
         for token in tokenized_sentence:
             norm_token = token.casefold()
-            co_occurrence = summary.count(token) + summary.count(norm_token)
-            co_occurrence *= termFreqDict[norm_token]
-            self.co_occour += co_occurrence
+            co_occurrence = summary.count(norm_token)
+            co_occurrence *= tf_dict[norm_token]
+            self.co_occour += co_occurrence/len(tokenized_sentence)
+            # Division avoids bias given by sentence length
 
     def set_similarity_score(self, sent_id, score):
+        # Fattah & Ren 2009
         for key in score.keys():
             if sent_id == key.split(':')[0]:
                 # Cumulative sum
                 self.sent_similarity += score[key]
 
     def set_numScore(self, sent, freqDict, numList):
+        # Fattah & Ren 2009
+        count = 0
         for token in sent:
             if token.casefold() in numList:
-                self.num_val += freqDict[token.casefold()]
+                count += 1
+        self.num_val = count/len(sent)  # Token-wise length
 
     def set_TF_ISF_IDF(self, sent, TF, DF):
+        # Nobata et al 2001
         num_doc = len(DF)
         TF_ISF_IDF = 0
         for token in sent:
@@ -124,8 +132,8 @@ class Scores():
             doc_has_token = 0
             for doc in DF:
                 doc_has_token += DF[doc].get(token, 0)
-            IDF = log(num_doc/(1 + doc_has_token))  # Avoids division by 0
-            TF_ISF_IDF += TF[token]*IDF
+            IDF = log(num_doc/(doc_has_token))
+            TF_ISF_IDF += (TF[token]/1+TF[token])*IDF  # Token-wise
         self.TF_ISF_IDF = TF_ISF_IDF
         return
 
@@ -142,23 +150,8 @@ class Scores():
         # a parabola is used as an implicit treshold
         sent_len = len(sentence)
         if sent_len < 2*mean_length:  # otherwise 0
-            self.sent_length = (-(1/mean_length**2))*(sent_len**2) + \
-                               (2/mean_length)*sent_len
-
-    '''
-    def set_posnegScore(self, sentence, summary_tf):
-        mean = sum(summary_tf.values())/len(summary_tf)
-        for token in sentence:
-            norm_token = token.casefold()
-            if norm_token in summary_tf:
-                token_freq = summary_tf[norm_token]
-                if token_freq > 2*mean:
-                    self.pos_keywords += 1.1*token_freq/mean
-                elif token_freq < 0.25*mean:
-                    self.neg_keywords += -10*token_freq/mean
-                else:
-                    self.pos_keywords += token_freq/mean
-    '''
+            self.sent_length = ((-1/mean_length**2))*(sent_len**2) + \
+                               ((2/mean_length)*sent_len)
 
     def set_posnegScore(self, sentence, summary_tf, highlightsOC):
         for token in sentence:
@@ -193,6 +186,9 @@ class Scores():
         if total:
             self.get_total(show=True, getVal=False)
 
+    def toJson(self):
+        return self.__dict__
+
 
 class Sentence():
     def __init__(self, sent, sent_id):
@@ -200,10 +196,15 @@ class Sentence():
         self.tokenized = sent
         self.scores = Scores()
 
+    def toJson(self):
+        data = self.__dict__
+        data['scores'] = self.scores.toJson()
+        return data
+
     def print_Sentence(self):  # Only for debug purposes -> too much verbose
         print([self.tokenized])
 
-    def compute_Scores(self, attributes, loc_th=5, loc_scores=[0, 0, 1, 0, 0],
+    def compute_Scores(self, attributes, loc_th=5, loc=[0, 0, 0, 1, 0],
                        reset=True):
         if reset:
             self.scores.zero()  # Reset to avoid update of loaded values
@@ -220,8 +221,8 @@ class Sentence():
 
         # Sentence location score
         sents_num = attributes['sents_num']
-        self.scores.set_sent_location(self.id, sents_len=sents_num, th=loc_th,
-                                      loc_scores=loc_scores)
+        self.scores.set_sent_location(self.id, sent_len=sents_num, th=loc_th,
+                                      loc_scores=loc)
 
         # Proper noun score
         self.scores.set_proper_noun(self.tokenized, prop_nouns, doc_term_freq)
@@ -287,10 +288,10 @@ class Sentence():
 
 
 class Document():
-    def __init__(self, doc, doc_id, high, load=False):
-        self.id = doc_id
+    def __init__(self, doc, doc_id, summary):
+        self.id = str(doc_id)
         self.sentences = {}
-        self.highlights = None
+        self.summary = None
         self.termFrequencies = {}
         self.highlightsTF = {}
         self.HF = {}
@@ -300,16 +301,24 @@ class Document():
         self.mean_length = 0
         self.tot_tokens = 0
 
-        self.add_highlights(high)
+        self.add_summary(summary)
 
-        if not load:
-            for sentence in doc:  # Must be pre-processed by spacy pipeline
-                if len(sentence) > 0:
-                    self.add_sentence(sentence, doc_id)
-                    self.tot_tokens += len(sentence)
+        for sentence in doc:  # Must be pre-processed by spacy pipeline
+            if len(sentence) > 0:
+                self.add_sentence(sentence, doc_id)
+                self.tot_tokens += len(sentence)
 
-            for key in self.termFrequencies:
-                self.termFrequencies[key] /= self.tot_tokens
+        # Normalize term frequency
+        for key in self.termFrequencies:
+            self.termFrequencies[key] /= self.tot_tokens
+
+    def toJson(self):
+        data = self.__dict__
+        sents = {}
+        for sent in self.sentences:
+            sents.update({sent: self.sentences[sent].toJson()})
+        data['sentences'] = sents
+        return data
 
     def add_sentence(self, sent, doc_id):
         if not isinstance(sent, list):
@@ -322,7 +331,7 @@ class Document():
             return
         else:
             # Push sentence into dictionary and organize by internal ID
-            sent_id = doc_id + '_{}'.format(len(self.sentences))
+            sent_id = str(doc_id) + '_{}'.format(len(self.sentences))
             self.sentences[sent_id] = Sentence(sent, sent_id)
 
             # Update term frequency
@@ -333,14 +342,14 @@ class Document():
                 else:
                     self.termFrequencies[token] += 1
 
-    def add_highlights(self, high):
-        if not isinstance(high, str):
+    def add_summary(self, summary):
+        if not isinstance(summary, str):
             print('Input type must be \'string\'')
             return
         else:
-            self.highlights = high
+            self.summary = summary
             # highlights term frequencies
-            for token in high:
+            for token in summary:
                 norm_token = token.casefold()
                 if norm_token not in self.highlightsTF:
                     self.highlightsTF[norm_token] = 1
@@ -349,10 +358,10 @@ class Document():
             self.highlightsTF = dict(sorted(self.highlightsTF.items(),
                                      key=lambda x: x[1]))
             # highlights word occurrence
-            high_sentences = high.splitlines()
+            sum_sentences = summary.splitlines()
             updates = {}
-            for sentence in high_sentences:
-                for token in high.split(' '):
+            for sentence in sum_sentences:
+                for token in summary.split(' '):
                     updates[token] = False
                     if token in sentence and not updates[token]:
                         if token not in self.HF:
@@ -384,7 +393,7 @@ class Document():
                       'sents_num': len(self.sentences),
                       'properNouns': properNouns,
                       'similarityScores': self.sentSimilarities,
-                      'summary': self.highlights,
+                      'summary': self.summary,
                       'numbers': self.nums,
                       'documentsFrequencies': DF_dict,
                       'sentenceRanks': self.sentRanks,
@@ -403,6 +412,16 @@ class Document():
         self.nums.append(numList)
 
     def compute_meanLength(self):
+        '''
+        summary = self.summary
+        summary = summary.split('\n')
+        summary = [x.split(' ') for x in summary]
+        for sent in summary:  # Word-wise
+            self.mean_length += len(sent)
+        self.mean_length /= len(summary)
+        '''
+
+        # Token - wise
         for sent in self.sentences:
             self.mean_length += len(self.sentences[sent].tokenized)
         self.mean_length = self.mean_length/len(self.sentences)
@@ -449,13 +468,13 @@ class Document():
 
 
 class Dataset():
-    def __init__(self, name='Processed_dataset.json'):
+    def __init__(self, name='Processed_dataset'):
         self.documents = {}
         self.proper_nouns = []  # For all dataset to avoid duplicates
         self.named_entities = []  # For all dataset to avoid duplicates
         self.cue_words = []
         self.DF = {}
-        self.name = self.rename(name)
+        self.name = name
 
     def add_document(self, doc, doc_id, high):
         if doc_id not in self.documents:
@@ -466,37 +485,49 @@ class Dataset():
 
     def rename(self, name):
         if name is not None:
-            if '.json' not in name:
-                name += '.json'
             self.name = name
+        else:
+            print('NoneType cannot be used as a name for the Dataset class')
 
-    '''def saveToDisk(self, pathToFile=None):
+    def save(self, pathToFile=None):
         if pathToFile is None:
             pathToFile = os.getcwd() + os.sep + self.name
         if '.json' not in pathToFile:
             pathToFile += '.json'
         if os.path.isfile(pathToFile):
-            print('File {} will be overwritten', os.path.basename(pathToFile))
+            filename = os.path.basename(pathToFile)
+            print('File \"{}\" will be overwritten'.format(filename))
+
+        data = self.__dict__
+        docs = {}
+        for doc in self.documents:
+            docs.update({doc: self.documents[doc].toJson()})
+        data['documents'] = docs
 
         out_stream = open(pathToFile, 'w')
-        json.dump(self.documents, out_stream)
+        json.dump(data, out_stream)
         out_stream.close()
 
-    def loadFromDisk(self, pathToFile=None):
+    def load(self, pathToFile=None):
         if pathToFile is None:
             pathToFile = os.getcwd() + os.sep + self.name
         if '.json' not in pathToFile:
             pathToFile += '.json'
         if not os.path.isfile(pathToFile):
-            print('File {} not found', os.path.basename(pathToFile))
+            print('File \"{}\" not found'.format(os.path.basename(pathToFile)))
             return None
 
         in_stream = open(pathToFile, 'r')
         loaded_dataset = json.load(in_stream)
         in_stream.close()
-        self.documents = loaded_dataset'''
 
-    def process_dataset(self, dataset_in, save=True):
+        self.proper_nouns = loaded_dataset['proper_nouns']
+        self.named_entities = loaded_dataset['named_entities']
+        self.cue_words = loaded_dataset['cue_words']
+        self.DF = loaded_dataset['DF']
+        self.name = loaded_dataset['name']
+
+    def process_dataset(self, dataset_in, doc_th=3, save=True):
 
         # nlp = spacy.load('en_core_web_sm')  # Loads pipeline for english
         nlp = spacy.load('en_core_web_md')  # Try this for having vectors
@@ -510,7 +541,7 @@ class Dataset():
         with tqdm(total=len(dataset_in)) as pbar_load:
             for key in dataset_in:
                 pbar_load.set_description('processing dataset: ')
-                doc_id = key['id']
+                doc_id = str(key['id'])
                 high = key['highlights']
 
                 tokenized_article = nlp(key['article'])  # Spacy object
@@ -559,8 +590,8 @@ class Dataset():
                 idx = 0
                 for sentence in tokenized_article.sents:
                     sent_str = sentence.text.casefold()
-                    sent_id = doc_id + '_{}'.format(idx)
-                    # sent_sim[sent_id] = 0
+                    sent_id = str(doc_id) + '_{}'.format(idx)
+
                     sent2_idx = 0
                     for sent2 in tokenized_article.sents:
                         if sent2.text.casefold() != sent_str:
@@ -570,17 +601,13 @@ class Dataset():
                             sent_sim[index] = sentence.similarity(sent2)/mlen
                         sent2_idx += 1
                     idx += 1
-                # tot_sim = sum(sent_sim.values())
-                # for sent in sent_sim:
-                #     sent_sim[sent] /= tot_sim
                 self.documents[doc_id].add_sentSimm(sent_sim)
 
                 pbar_load.update(1)
-                if i == 2:
+                if i == doc_th-1:
                     break
                 i += 1
         pbar_load.close()
-        print('\n'*3)
 
         with tqdm(total=len(self.documents)) as pbar_proc:
             for doc in self.documents:
@@ -609,7 +636,7 @@ class Dataset():
         for doc in self.documents.values():
             ordered_scores = doc.get_total_scores()
             ordered_doc = ''
-            document = self.documents[doc.id]
+            document = self.documents[str(doc.id)]
             for sent_id in ordered_scores:
                 if ordered_scores[sent_id] > th:
                     sentence = document.get_sentence(sent_id, True)
@@ -617,16 +644,20 @@ class Dataset():
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
-    def rouge_computation(self, n, th=0, show=False):
+    def rouge_computation(self, n, th=0, show=False, sentences=False):
         summarization = self.summarization(th)
         for doc_id, doc in summarization.items():
             # Split summaries in sentences
             hyp = doc.split('\n')
-            ref = self.documents[doc_id].highlights.split('\n')
+            ref = self.documents[doc_id].summary.split('\n')
 
             # Split sentences in tokens and retain same number of sentences
             ref = [sent.split(' ') for sent in ref]
             hyp = [sent.split(' ') for sent in hyp][:len(ref)]  # to compare
+            if sentences:
+                print('-'*80)
+                print(hyp, '\n', '-'*39, 'VS', '-'*39, '\n', ref)
+                print('-'*80)
 
             # n-gram merging
             for summary in [ref, hyp]:
@@ -665,7 +696,7 @@ class Dataset():
             hyp_ngram_count = sum(len(i) for i in hyp)
             rouge_precision = summary_match_count / hyp_ngram_count
             if show:
-                print('Document id: {}'.format(doc_id))
+                print('\nDocument id: {}'.format(doc_id))
                 print(' Rouge-{}: {:0.4f}'.format(n, rouge_n))
                 # print(' Rouge Recall: {:0.4f}'.format(rouge_recall))
                 print(' Rouge Precision: {:0.4f}\n'.format(rouge_precision))
@@ -673,8 +704,36 @@ class Dataset():
 
 
 if __name__ == '__main__':
+
+    test_train = [{'id': 0,
+                   'article': 'Two cats where found near the old '
+                              'tree beside the river.\nLocal authorities '
+                              'are ashamed: "Not even in the films" said '
+                              'the chief officer.\n'
+                              'New developments soon',
+                   'highlights': 'Two cats where found near the old tree.\n'
+                                 'New developments soon.'
+                   }]
+
+    CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
+    CNN_processed = Dataset(name='CNN_processed.json')
+    CNN_processed.process_dataset(CNN_dataset['train'])
+    CNN_processed.save()
+
+    '''
+    test_dataset = Dataset(name='Cats_dataset')
+    test_dataset.process_dataset(test_train)
+    test_dataset.save()
+
+
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])
 
+    CNN_processed.print_scores(onlyTotal=False)
     CNN_processed.rouge_computation(2, show=True)
+
+    summary = CNN_processed.summarization()
+    for key in summary:
+        print(summary[key])
+    '''
