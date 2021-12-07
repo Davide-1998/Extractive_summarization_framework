@@ -5,6 +5,7 @@ import os
 from tqdm import tqdm
 import pytextrank
 from Document import Document
+from rouge import Rouge
 
 
 # Dataset is dictionary made of three key values:
@@ -206,8 +207,13 @@ class Dataset():
 
     def rouge_computation(self, n, th=0, show=False, sentences=False):
         summarization = self.summarization(th)
+        rouge_results = {}
         for doc_id, doc in summarization.items():
             # Split summaries in sentences
+            hyp_rouge = doc
+            ref_rouge = self.documents[doc_id].summary
+
+            '''
             hyp = doc.split('\n')
             ref = self.documents[doc_id].summary.split('\n')
 
@@ -241,17 +247,6 @@ class Dataset():
             ref_ngram_count = sum(len(i) for i in ref)
             rouge_n = summary_match_count/ref_ngram_count
 
-            # Recall -> number of words captured by summary wrt reference
-            '''
-            overlap_ngrams = 0
-            for sentence in hyp:
-                ref_sentence = ref[hyp.index(sentence)]
-                for token in sentence:
-                    if token in ref_sentence:
-                        overlap_ngrams += 1
-            rouge_recall = overlap_ngrams / ref_ngram_count
-            '''
-
             # Precision -> how much of the summarization is useful
             hyp_ngram_count = sum(len(i) for i in hyp)
             rouge_precision = summary_match_count / hyp_ngram_count
@@ -260,7 +255,12 @@ class Dataset():
                 print(' Rouge-{}: {:0.4f}'.format(n, rouge_n))
                 # print(' Rouge Recall: {:0.4f}'.format(rouge_recall))
                 print(' Rouge Precision: {:0.4f}\n'.format(rouge_precision))
-        return rouge_n
+            '''
+
+            rouge = Rouge(metrics=['rouge-%d' % n])
+            scores = rouge.get_scores(ref_rouge, hyp_rouge)
+            rouge_results[doc_id] = scores[0]
+        return rouge_results
 
 
 if __name__ == '__main__':
@@ -278,15 +278,18 @@ if __name__ == '__main__':
     # CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     # CNN_processed = Dataset(name='CNN_processed.json')
     # CNN_processed.process_dataset(CNN_dataset['train'])
-    CNN_processed = Dataset()
-    CNN_processed.load('CNN_processed.json')
+    # CNN_processed = Dataset()
+    # CNN_processed.load('CNN_processed.json')
 
-    '''
     test_dataset = Dataset(name='Cats_dataset')
     test_dataset.process_dataset(test_train)
-    test_dataset.save()
+    print(test_dataset.rouge_computation(n=2))
 
-
+    # rouge = Rouge()
+    # scores = rouge.get_scores(test_train[0]['highlights'],
+    #                           test_train[0]['article'])
+    # print(scores)
+    '''
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])
