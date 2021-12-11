@@ -30,64 +30,41 @@ class Sentence():
     def print_Sentence(self):  # Only for debug -> too much verbose
         print([self.tokenized])
 
-    def compute_Scores(self, attributes, loc_th=5, loc=[0, 0, 0, 1, 0],
-                       reset=True):
+    def compute_Scores(self, attributes, score_list=[], loc_th=5,
+                       loc=[0, 0, 0, 1, 0], reset=True):
         if reset:
             self.scores.zero()  # Reset to avoid update of loaded values
 
-        doc_term_freq = attributes['termFrequencies']
-        prop_nouns = attributes['properNouns']
-        simScore = attributes['similarityScores']
-        nums = attributes['numbers']
-        DF_dict = attributes['documentsFrequencies']
-        nameEnt = attributes['namedEntities']
+        attributes['sent_id'] = self.id
+        attributes['tokenized'] = self.tokenized
+        attributes['location_score_filter'] = loc
+        attributes['location_threshold'] = loc_th
 
-        # TF score
-        self.scores.set_TF(self.tokenized, doc_term_freq)
+        functions = {'TF_score': self.scores.set_TF,
+                     'Sentence_location': self.scores.set_sent_location,
+                     'Proper_noun': self.scores.set_proper_noun,
+                     'Co_occurrence': self.scores.set_co_occour,
+                     'Similarity': self.scores.set_similarity_score,
+                     'Numerical': self.scores.set_numScore,
+                     'TF_IDF': self.scores.set_TF_ISF_IDF,
+                     'Sentence_rank': self.scores.set_sentRank,
+                     'Sentence_length': self.scores.set_sentLength,
+                     'Positive_Negative': self.scores.set_posnegScore,
+                     'Thematic_words': self.scores.set_thematicWordsScore,
+                     'Named_entities': self.scores.set_namedEntitiesScore}
 
-        # Sentence location score
-        sents_num = attributes['sents_num']
-        self.scores.set_sent_location(self.id, sent_len=sents_num, th=loc_th,
-                                      loc_scores=loc)
-
-        # Proper noun score
-        self.scores.set_proper_noun(self.tokenized, prop_nouns, doc_term_freq)
-
-        # Word Co-occurence
-        self.scores.set_co_occour(self.tokenized, attributes['summary'],
-                                  doc_term_freq)
-
-        # Similarity Score
-        self.scores.set_similarity_score(self.id, simScore)
-
-        # Numerical Score -> if number exist in sentence
-        self.scores.set_numScore(self.tokenized, doc_term_freq, nums)
-
-        # TF-IDF score
-        self.scores.set_TF_ISF_IDF(self.tokenized, doc_term_freq, DF_dict)
-
-        # Sentence Rank
-        self.scores.set_sentRank(self.tokenized, attributes['sentenceRanks'])
-
-        # Sentence length Score
-        self.scores.set_sentLength(self.tokenized,
-                                   attributes['meanSentenceLength'])
-
-        # Positive-Negative keywords scoring
-        self.scores.set_posnegScore(self.tokenized,
-                                    attributes['highlightsTF'],
-                                    attributes['highlightsOC'])
-
-        # Thematic words
-        self.scores.set_thematicWordsScore(self.tokenized, self.id,
-                                           doc_term_freq)
-
-        # Named entities score
-        self.scores.set_namedEntitiesScore(self.tokenized, doc_term_freq,
-                                           nameEnt)
+        if len(score_list) > 0:
+            for key in score_list:
+                functions.get(key)(attributes)
+        else:
+            for key in functions:  # If none in input, all scorings will run
+                functions.get(key)(attributes)
 
     def get_total_score(self):
         return self.scores.get_total()
+
+    def get_weighted_total_score(self, weights):
+        return self.scores.get_weighted_total(weights)
 
     def info(self, verbose=True):
         if verbose:

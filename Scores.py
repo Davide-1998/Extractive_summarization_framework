@@ -1,5 +1,8 @@
 from math import log
+import numpy as np
 
+
+# Available scoring methods = 14
 
 class Scores():
     def __init__(self):
@@ -28,17 +31,22 @@ class Scores():
             if self.__dict__ != 0:
                 self.__dict__[el] = 0
 
-    def set_TF(self, token_list, term_freq_dict):
+    def set_TF(self, attributes):
+        token_list = attributes['tokenized']
+        term_freq_dict = attributes['termFrequencies']
         if self.TF != 0:
             print('TF value will be overwritten')
             self.TF = 0
         for token in token_list:
             self.TF += term_freq_dict.get(token.casefold(), 0)
-        # self.TF /= len(token_list)
+        # self.TF /= len(token_list)  # Add in experiments
 
-    def set_sent_location(self, sent_id, sent_len, th=5,
-                          loc_scores=[0, 0, 0, 0, 1]):
-        [ED, NB1, NB2, NB3, FaR] = loc_scores
+    def set_sent_location(self, attributes):
+        sent_id = attributes['sent_id']
+        sent_len = attributes['sents_num']
+        [ED, NB1, NB2, NB3, FaR] = attributes['location_score_filter']
+        th = attributes['location_threshold']
+
         if [ED, NB1, NB2, NB3, FaR].count(1) != 1:
             print('Multiple or none options setted'
                   'score of 0 attributed')
@@ -75,7 +83,12 @@ class Scores():
                 else:
                     self.sent_location = 0
 
-    def set_proper_noun(self, sentence, prop_noun_list, tf_dict):
+    def set_proper_noun(self, attributes):
+
+        sentence = attributes['tokenized']
+        prop_noun_list = attributes['properNouns']
+        tf_dict = attributes['termFrequencies']
+
         # Nobata et al 2001
         if self.proper_noun != 0:
             print('Proper noun will be overwritten')
@@ -84,7 +97,11 @@ class Scores():
             if token.casefold() in prop_noun_list:
                 self.proper_noun += tf_dict[token.casefold()]
 
-    def set_co_occour(self, tokenized_sentence, summary, tf_dict):
+    def set_co_occour(self, attributes):
+        tokenized_sentence = attributes['tokenized']
+        summary = attributes['summary']
+        tf_dict = attributes['termFrequencies']
+
         co_occurrence = 0
         summary = summary.casefold()
         for token in tokenized_sentence:
@@ -94,14 +111,21 @@ class Scores():
             self.co_occour += co_occurrence/len(tokenized_sentence)
             # Division avoids bias given by sentence length
 
-    def set_similarity_score(self, sent_id, score):
+    def set_similarity_score(self, attributes):
         # Fattah & Ren 2009
+
+        sent_id = attributes['sent_id']
+        score = attributes['similarityScores']
+
         for key in score.keys():
             if sent_id == key.split(':')[0]:
                 # Cumulative sum
                 self.sent_similarity += score[key]
 
-    def set_numScore(self, sent, freqDict, numList):
+    def set_numScore(self, attributes):
+        sent = attributes['tokenized']
+        numList = attributes['numbers']
+
         # Fattah & Ren 2009
         count = 0
         for token in sent:
@@ -109,7 +133,11 @@ class Scores():
                 count += 1
         self.num_val = count/len(sent)  # Token-wise length
 
-    def set_TF_ISF_IDF(self, sent, TF, DF):
+    def set_TF_ISF_IDF(self, attributes):
+        sent = attributes['tokenized']
+        TF = attributes['termFrequencies']
+        DF = attributes['documentsFrequencies']
+
         # Nobata et al 2001
         num_doc = len(DF)
         TF_ISF_IDF = 0
@@ -123,7 +151,10 @@ class Scores():
         self.TF_ISF_IDF = TF_ISF_IDF
         return
 
-    def set_sentRank(self, sentence, rankings):
+    def set_sentRank(self, attributes):
+        sentence = attributes['tokenized']
+        rankings = attributes['sentenceRanks']
+
         reconstructed_sentence = ''
         for token in sentence:
             reconstructed_sentence += token + ' '
@@ -132,7 +163,10 @@ class Scores():
             if chunk in reconstructed_sentence:
                 self.sent_rank += rankings[chunk]
 
-    def set_sentLength(self, sentence, mean_length):
+    def set_sentLength(self, attributes):
+        sentence = attributes['tokenized']
+        mean_length = attributes['meanSentenceLength']
+
         # a parabola is used as an implicit treshold
         sent_len = len(sentence)
         if sent_len < 2*mean_length:  # otherwise 0
@@ -140,32 +174,51 @@ class Scores():
                                (sent_len**2) + \
                                ((2/mean_length)*sent_len)
 
-    def set_posnegScore(self, sentence, summary_tf, highlightsOC):
+    def set_posnegScore(self, attributes):
+        sentence = attributes['tokenized']
+        # summary_tf = attributes['highlightsTF']
+        highlightsOC = attributes['highlightsOC']
         for token in sentence:
             if token in highlightsOC:
                 self.pos_keywords += sentence.count(token) * \
                                      highlightsOC[token]
         self.pos_keywords /= len(sentence)
 
-    def set_thematicWordsScore(self, sentence, sent_id, doc_tf):
+    def set_thematicWordsScore(self, attributes):
+        sentence = attributes['tokenized']
+        # sent_id = attributes['sent_id']
+        doc_tf = attributes['termFrequencies']
+
         mean = sum(doc_tf.values())/len(doc_tf)
         for token in sentence:
             norm_token = token.casefold()
             if doc_tf[norm_token] > 2*mean:  # Is thematic
                 self.thematic_features += doc_tf[norm_token]
 
-    def set_namedEntitiesScore(self, sentence, termFreqDict, neList):
+    def set_namedEntitiesScore(self, attributes):
+        sentence = attributes['tokenized']
+        termFreqDict = attributes['termFrequencies']
+        neList = attributes['namedEntities']
+
         for token in sentence:
             norm_token = token.casefold()
             if norm_token in neList:
                 self.named_entities += termFreqDict[norm_token]
-        return
 
     def get_total(self, show=False, getVal=True):
         if show:
             print('Tot Score = %0.4f' % self.get_total())
         if getVal:
             return sum(self.__dict__.values())
+
+    def get_weighted_total(self, weights=[]):
+        if len(weights) != len(self.__dict__.values()):
+            print('Incompatible shapes among input weights'
+                  'and available scores')
+
+        values = np.array([x for x in self.__dict__.values()])
+        weights = np.array(weights)
+        return sum(values * weights)
 
     def print_total_scores(self, detail=True, total=True):
         if detail:

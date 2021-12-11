@@ -6,6 +6,8 @@ from tqdm import tqdm
 import pytextrank
 from Document import Document
 from rouge import Rouge
+import pandas as pd
+import numpy as np
 
 
 # Dataset is dictionary made of three key values:
@@ -84,7 +86,7 @@ class Dataset():
             temp_doc.from_dict(loaded_document)
             self.documents[doc_id] = temp_doc
 
-    def process_dataset(self, dataset_in, doc_th=3, save=True):
+    def process_dataset(self, dataset_in, doc_th=3, save=True, scoreList=[]):
 
         # nlp = spacy.load('en_core_web_sm')  # Loads pipeline for english
         nlp = spacy.load('en_core_web_md')  # Try this for having vectors
@@ -171,7 +173,8 @@ class Dataset():
                 pbar_proc.set_description('computing scores: ')
                 self.documents[doc].compute_scores(self.proper_nouns,
                                                    self.DF,
-                                                   self.named_entities)
+                                                   self.named_entities,
+                                                   scoreList)
                 pbar_proc.update(1)
         pbar_proc.close()
 
@@ -192,10 +195,13 @@ class Dataset():
         else:
             print('No documents from which print scores')
 
-    def summarization(self, th=0):
+    def summarization(self, th=0, weights=[]):
         summarized_dataset = {}
         for doc in self.documents.values():
-            ordered_scores = doc.get_total_scores()
+            if len(weights) == 0:
+                ordered_scores = doc.get_total_scores()
+            else:
+                ordered_scores = doc.get_weighted_total_scores(weights)
             ordered_doc = ''
             document = self.documents[str(doc.id)]
             for sent_id in ordered_scores:
@@ -205,8 +211,12 @@ class Dataset():
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
-    def rouge_computation(self, n, th=0, show=False, sentences=False):
-        summarization = self.summarization(th)
+    def rouge_computation(self, n=2, th=0, show=False, sentences=False,
+                          weights=[]):
+        if len(weights) == 0:
+            summarization = self.summarization(th)
+        else:
+            summarization = self.summarization(th, weights)
         rouge_results = {}
         for doc_id, doc in summarization.items():
             # Split summaries in sentences
@@ -260,6 +270,13 @@ class Dataset():
             rouge = Rouge(metrics=['rouge-%d' % n])
             scores = rouge.get_scores(ref_rouge, hyp_rouge)
             rouge_results[doc_id] = scores[0]
+        if show:
+            for doc_id, value in rouge_results.items():
+                result = value['rouge-%d' % n]
+                print('Doc ID: {}'.format(doc_id))
+                print('\tRouge-{}: {:0.2f}'.format(n, result['r']),
+                      '\n\tPrecision: {:0.2f}'.format(result['p']),
+                      '\n\tF-score: {:0.2f}'.format(result['f']))
         return rouge_results
 
 
@@ -275,21 +292,30 @@ if __name__ == '__main__':
                                  'New developments soon.'
                    }]
 
-    # CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
-    # CNN_processed = Dataset(name='CNN_processed.json')
-    # CNN_processed.process_dataset(CNN_dataset['train'])
+    weights = np.zeros(14)
+    weights[0] = 50
+    weights[3] = 100
+    weights[11] = 201
+
+    CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
+    CNN_processed = Dataset(name='CNN_processed.json')
+    CNN_processed.process_dataset(CNN_dataset['train'])
+    rouge_result = CNN_processed.rouge_computation(show=True, weights=weights)
+    # CNN_processed.print_scores(onlyTotal=False)
+
+    '''
     # CNN_processed = Dataset()
     # CNN_processed.load('CNN_processed.json')
 
-    test_dataset = Dataset(name='Cats_dataset')
-    test_dataset.process_dataset(test_train)
-    print(test_dataset.rouge_computation(n=2))
+    # test_dataset = Dataset(name='Cats_dataset')
+    # test_dataset.process_dataset(test_train)
+    # print(test_dataset.rouge_computation(n=2))
 
     # rouge = Rouge()
     # scores = rouge.get_scores(test_train[0]['highlights'],
     #                           test_train[0]['article'])
     # print(scores)
-    '''
+
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])

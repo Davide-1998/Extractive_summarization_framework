@@ -40,18 +40,6 @@ class Document():
         self.id = str(id)
 
     def from_dict(self, loadedDict):
-        '''
-        self.id = loadedDict['id']
-        self.summary = loadedDict['sumamry']
-        self.termFrequencies = loadedDict['termFrequencies']
-        self.highlightsTF = loadedDict['highlightsTF']
-        self.HF = loadedDict['HF']
-        self.sentSimilarities = loadedDict['sentSImilarities']
-        self.sentRanks = loadedDict['sentRanks']
-        self.nums = loadedDict['nums']
-        self.mean_length = loadedDict['mean_length']
-        self.tot_tokens = loadedDict['tot_tokens']
-        '''
         for key in loadedDict:
             if key in self.__dict__ and key != 'sentences':
                 self.__dict__[key] = loadedDict[key]
@@ -130,7 +118,7 @@ class Document():
                   'got input of type {} and {}'.format(type(text), type(rank)))
             return
 
-    def compute_scores(self, properNouns, DF_dict, namedEntities):
+    def compute_scores(self, properNouns, DF_dict, namedEntities, scores=[]):
         attributes = {'termFrequencies': self.termFrequencies,
                       'sents_num': len(self.sentences),
                       'properNouns': properNouns,
@@ -145,7 +133,9 @@ class Document():
                       'namedEntities': namedEntities}
         for sentence in self.sentences:
             # attributes['similarityScore'] = self.sentSimilarities[sentence]
-            self.sentences[sentence].compute_Scores(attributes)
+            self.sentences[sentence].compute_Scores(attributes,
+                                                    score_list=scores,
+                                                    reset=True)
 
     def add_sentSimm(self, simmDict):
         self.sentSimilarities.update(simmDict)
@@ -172,6 +162,18 @@ class Document():
         scores = {}
         for sentence in self.sentences.values():
             scores[sentence.id] = sentence.get_total_score()
+        ordered_scores = dict(sorted(scores.items(),
+                                     key=lambda x: x[1],
+                                     reverse=True))
+        if show:
+            for el in ordered_scores:
+                print(el, ' -> ', ordered_scores[el])
+        return ordered_scores
+
+    def get_weighted_total_scores(self, weights, show=False):
+        scores = {}
+        for sentence in self.sentences.values():
+            scores[sentence.id] = sentence.get_weighted_total_score(weights)
         ordered_scores = dict(sorted(scores.items(),
                                      key=lambda x: x[1],
                                      reverse=True))
