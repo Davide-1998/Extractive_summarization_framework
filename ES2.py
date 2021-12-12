@@ -219,6 +219,7 @@ class Dataset():
         else:
             summarization = self.summarization(weights)
         rouge_results = {}
+
         for doc_id, doc in summarization.items():
             # Split summaries in sentences
             hyp_rouge = doc
@@ -268,17 +269,22 @@ class Dataset():
                 print(' Rouge Precision: {:0.4f}\n'.format(rouge_precision))
             '''
 
-            rouge = Rouge(metrics=['rouge-%d' % n])
-            scores = rouge.get_scores(ref_rouge, hyp_rouge)
-            rouge_results[doc_id] = scores[0]
+            metric = 'rouge-%d' % n
+            rouge = Rouge(metrics=[metric])
+            scores = rouge.get_scores(ref_rouge, hyp_rouge)[0][metric]
+            rouge_results[doc_id] = [scores['r'], scores['p'], scores['f']]
+
         if show:
             for doc_id, value in rouge_results.items():
-                result = value['rouge-%d' % n]
                 print('Doc ID: {}'.format(doc_id))
-                print('\tRouge-{}: {:0.2f}'.format(n, result['r']),
-                      '\n\tPrecision: {:0.2f}'.format(result['p']),
-                      '\n\tF-score: {:0.2f}'.format(result['f']))
-        return rouge_results
+                print('\tRouge-{}: {:0.4f}'.format(n, value[0]),
+                      '\n\tPrecision: {:0.4f}'.format(value[1]),
+                      '\n\tF-score: {:0.4f}'.format(value[2]))
+
+        pd_results = pd.DataFrame.from_dict(rouge_results, orient='index',
+                                            columns=['Rouge', 'Precision',
+                                                     'F-score'])
+        return pd_results
 
 
 if __name__ == '__main__':
@@ -298,8 +304,15 @@ if __name__ == '__main__':
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'])
-    rouge_result = CNN_processed.rouge_computation(show=True, weights=weights)
-    # CNN_processed.print_scores(onlyTotal=False)
+    rouge_result = CNN_processed.rouge_computation(show=False, weights=weights)
+
+    mean_rouge = rouge_result['Rouge'].mean()
+    mean_precision = rouge_result['Precision'].mean()
+    mean_fscore = rouge_result['F-score'].mean()
+
+    print('\n\n')
+    print('Average stats: Rouge {:0.4f}, Precision {:0.4f}, F-Score {:0.4f}'
+          .format(mean_rouge, mean_precision, mean_fscore))
 
     '''
     # CNN_processed = Dataset()
