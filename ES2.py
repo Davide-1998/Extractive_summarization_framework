@@ -195,7 +195,7 @@ class Dataset():
         else:
             print('No documents from which print scores')
 
-    def summarization(self, th=0, weights=[]):
+    def summarization(self, weights=[]):
         summarized_dataset = {}
         for doc in self.documents.values():
             if len(weights) == 0:
@@ -204,19 +204,20 @@ class Dataset():
                 ordered_scores = doc.get_weighted_total_scores(weights)
             ordered_doc = ''
             document = self.documents[str(doc.id)]
+            count = 0
             for sent_id in ordered_scores:
-                if ordered_scores[sent_id] > th:
+                # Take same number of sentences as the reference
+                if count < len(doc.summary.split('\n')):
                     sentence = document.get_sentence(sent_id, True)
                     ordered_doc += '{}\n'.format(sentence)
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
-    def rouge_computation(self, n=2, th=0, show=False, sentences=False,
-                          weights=[]):
+    def rouge_computation(self, n=2, weights=[], show=False, sentences=False):
         if len(weights) == 0:
-            summarization = self.summarization(th)
+            summarization = self.summarization()
         else:
-            summarization = self.summarization(th, weights)
+            summarization = self.summarization(weights)
         rouge_results = {}
         for doc_id, doc in summarization.items():
             # Split summaries in sentences
@@ -292,10 +293,7 @@ if __name__ == '__main__':
                                  'New developments soon.'
                    }]
 
-    weights = np.zeros(14)
-    weights[0] = 50
-    weights[3] = 100
-    weights[11] = 201
+    weights = np.ones(14)
 
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
