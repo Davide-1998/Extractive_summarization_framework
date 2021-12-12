@@ -53,8 +53,8 @@ class Document():
         if not isinstance(sent, list):
             print('Format type of input must be \'List\'')
             return
-        if len(sent) == 1:
-            print('Warning: singleton {} detected!'.format(sent))
+        # if len(sent) == 1:
+        #     print('Warning: singleton {} detected!'.format(sent))
         elif len(sent) == 0:  # Enforced in mathod above
             print('Input sentence not eligible for adding operation, Ignored')
             return
