@@ -107,7 +107,7 @@ class Dataset():
                     for token in sentence:
                         if not token.is_punct:  # Do not consider punctuature
                             norm_token = token.text.casefold()  # Try lemma
-                            tokenized_sent.append(norm_token)
+                            tokenized_sent.append(token.text)
                             if token.pos_ == 'PROPN' and \
                                norm_token not in self.proper_nouns:
                                 self.proper_nouns.append(norm_token)
