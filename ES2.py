@@ -10,13 +10,7 @@ import pandas as pd
 import numpy as np
 
 
-# Dataset is dictionary made of three key values:
-# train, test, validation.
-# Each of these keys lead to a dictionary having as keys:
-# id, article, highlights
-# Article is unsummarized, hilights is the target
-
-# Refs for dataset:
+# References for dataset:
 # https://huggingface.co/datasets/cnn_dailymail
 # https://huggingface.co/datasets/viewer/?dataset=cnn_dailymail&config=3.0.0
 
@@ -24,15 +18,15 @@ import numpy as np
 class Dataset():
     def __init__(self, name='Processed_dataset'):
         self.documents = {}
-        self.proper_nouns = []  # For all dataset to avoid duplicates
-        self.named_entities = []  # For all dataset to avoid duplicates
-        self.cue_words = []
-        self.DF = {}
-        self.name = name
+        self.proper_nouns = []      # For all dataset to avoid duplicates
+        self.named_entities = []    # For all dataset to avoid duplicates
+        self.cue_words = []         # For all dataset to avoid duplicates
+        self.DF = {}                # Dataset-wise word frequency
+        self.name = name            # Name of the dataset file
 
-    def add_document(self, doc, doc_id, high):
+    def add_document(self, doc, doc_id, summary):
         if doc_id not in self.documents:
-            self.documents[doc_id] = Document(doc, doc_id, high)
+            self.documents[doc_id] = Document(doc, doc_id, summary)
         else:
             print('Key already exist, run stopped to preserve consistency')
             return
@@ -88,8 +82,8 @@ class Dataset():
 
     def process_dataset(self, dataset_in, doc_th=3, save=True, scoreList=[]):
 
-        # nlp = spacy.load('en_core_web_sm')  # Loads pipeline for english
-        nlp = spacy.load('en_core_web_md')  # Try this for having vectors
+        # Medium dataset for spacy to allow sentence similarity computation
+        nlp = spacy.load('en_core_web_md')
 
         # Making textrank pipe
         nlp.add_pipe('textrank', last=True)
@@ -101,7 +95,7 @@ class Dataset():
             for key in dataset_in:
                 pbar_load.set_description('processing dataset: ')
                 doc_id = str(key['id'])
-                high = key['highlights']
+                summary = key['highlights']
 
                 tokenized_article = nlp(key['article'])  # Spacy object
 
@@ -112,8 +106,8 @@ class Dataset():
                     tokenized_sent = []
                     for token in sentence:
                         if not token.is_punct:  # Do not consider punctuature
-                            norm_token = token.text.casefold()
-                            tokenized_sent.append(token.text)  # Try with lemma
+                            norm_token = token.text.casefold()  # Try lemma
+                            tokenized_sent.append(norm_token)
                             if token.pos_ == 'PROPN' and \
                                norm_token not in self.proper_nouns:
                                 self.proper_nouns.append(norm_token)
@@ -127,7 +121,7 @@ class Dataset():
                                 self.DF[doc_id][norm_token] = 1
 
                     segmented_document.append(tokenized_sent)  # Text object
-                self.add_document(segmented_document, doc_id, high)
+                self.add_document(segmented_document, doc_id, summary)
                 self.documents[doc_id].add_nums(num_tokens)
                 self.documents[doc_id].compute_meanLength()
 
