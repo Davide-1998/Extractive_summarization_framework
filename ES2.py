@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import time
 
+import threading
 
 # References for dataset:
 # https://huggingface.co/datasets/cnn_dailymail
@@ -158,17 +159,25 @@ class Dataset():
                 i += 1
         pbar_load.close()
 
-        with tqdm(total=len(self.documents)) as pbar_proc:
-            for doc in self.documents:
+        self.process_documents(self.documents.keys(),
+                               scoreList,
+                               spacyPipe=nlp)
+
+        print('Total Processing Time: {:0.4f}[sec]'
+              .format(time.time()-start_time))
+
+    def process_documents(self, docs_id, scoreList, spacyPipe=None):
+        # Takes lot of time -> multi-thread
+        with tqdm(total=len(docs_id)) as pbar_proc:
+            for doc in docs_id:
                 pbar_proc.set_description('computing scores: ')
                 self.documents[doc].compute_scores(self.proper_nouns,
                                                    self.DF,
                                                    self.named_entities,
-                                                   scoreList)
+                                                   scoreList,
+                                                   spacy_pipeline=spacyPipe)
                 pbar_proc.update(1)
         pbar_proc.close()
-
-        print('Total Processing Time: {}'.format(time.time()-start_time))
 
     def add_proper_noun(self, obj):
         if isinstance(obj, spacy.tokens.Token):
@@ -207,7 +216,7 @@ class Dataset():
         else:
             print('No documents from which print scores')
 
-    def summarization(self, weights=[]):
+    def summarization(self, weights=[], show_scores=False):
         summarized_dataset = {}
         for doc in self.documents.values():
             if len(weights) == 0:
@@ -223,6 +232,11 @@ class Dataset():
                     sentence = document.get_sentence(sent_id, True)
                     ordered_doc += '{}\n'.format(sentence)
                     count += 1
+                    if show_scores:
+                        print(sentence)
+                        scores = document.get_sentence(sent_id).scores
+                        scores.print_total_scores()
+                        print('\n')
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
@@ -272,14 +286,14 @@ if __name__ == '__main__':
 
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
-    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=1)
+    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=15)
     rouge_result = CNN_processed.rouge_computation(show=False, weights=weights)
 
-    # summaryzation = CNN_processed.summarization(weights)
+    summaryzation = CNN_processed.summarization(weights, False)
     # for key in summaryzation:
     #     print(CNN_processed.documents[key].summary)
     #     print('* {} summary:'.format(key), '*'*(70-len(key)))
-    #     print(summaryzation[key])
+    #     print(summaryzation[key].score)
 
     mean_rouge = rouge_result['Rouge'].mean()
     mean_precision = rouge_result['Precision'].mean()

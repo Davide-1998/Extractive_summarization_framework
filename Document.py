@@ -1,5 +1,6 @@
 from Sentence import Sentence
 import spacy
+import time
 
 
 class Document():
@@ -8,8 +9,6 @@ class Document():
         self.sentences = {}             # Sentences of the Document
         self.summary = None             # Summary of the Document
         self.termFrequencies = {}       # Document-wise Term Frequencies
-        self.summaryTF = {}             # Term Frequencies in the Summary
-        self.summaryOC = {}             # Summary Terms Occurrences
         self.sentSimilarities = {}      # Similarity computed for all sentences
         self.sentRanks = {}             # Rankings of the Sentences
         self.nums = []                  # List of numerical tokens
@@ -79,38 +78,13 @@ class Document():
             return
         else:
             self.summary = summary
-            # summary term frequencies
-            for token in summary:
-                norm_token = token.casefold()
-                if norm_token not in self.summaryTF:
-                    self.summaryTF[norm_token] = 1
-                else:
-                    self.summaryTF[norm_token] += 1
-            self.summaryTF = dict(sorted(self.summaryTF.items(),
-                                  key=lambda x: x[1]))
-            # summary word occurrence -> occurrence among sentences in summary
-            sum_sentences = summary.splitlines()
-            updates = {}
-            for sentence in sum_sentences:
-                for token in summary.split(' '):
-                    updates[token] = False
-                    if token in sentence and not updates[token]:
-                        if token not in self.summaryOC:
-                            self.summaryOC[token] = 1
-                        else:
-                            self.summaryOC[token] += 1
-                        updates[token] = True
-                updates[token] = False  # Ensures each token is counted once
-
-            # Normalization of Summary Co Occurrence
-            for key in self.summaryOC:
-                self.summaryOC[key] /= len(self.summaryOC)
 
     def add_sentRank(self, text, rank):
         if isinstance(rank, float) and isinstance(text, str):
             if text not in self.sentRanks:
                 self.sentRanks[text] = rank
             # else:
+            #     self.sentRanks[text] += rank
             #     print('Entry \"{}\" already exist in record, skipping.'
             #           .format(text))
                 # Maybe try with accumulating them and see if rouge score up
@@ -119,9 +93,13 @@ class Document():
                   'got input of type {} and {}'.format(type(text), type(rank)))
             return
 
-    def compute_scores(self, properNouns, DF_dict, namedEntities, scores=[]):
+    def compute_scores(self, properNouns, DF_dict, namedEntities, scores=[],
+                       spacy_pipeline=None):
         # Computed here to avoid multiple recomputations in sentences
-        nlp = spacy.load('en_core_web_md')
+        if spacy_pipeline is None:
+            nlp = spacy.load('en_core_web_md')
+        else:
+            nlp = spacy_pipeline
         summary = nlp(self.summary)
         tokenized_summary = []
         for sentence in summary.sents:
@@ -142,8 +120,6 @@ class Document():
                       'documentsFrequencies': DF_dict,
                       'sentenceRanks': self.sentRanks,
                       'meanSentenceLength': self.mean_length,
-                      'summaryTF': self.summaryTF,
-                      'summaryOC': self.summaryOC,
                       'namedEntities': namedEntities}
         for sentence in self.sentences:
             # attributes['similarityScore'] = self.sentSimilarities[sentence]
