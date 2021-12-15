@@ -19,11 +19,11 @@ import time
 class Dataset():
     def __init__(self, name='Processed_dataset'):
         self.documents = {}
-        self.proper_nouns = []      # For all dataset to avoid duplicates
-        self.named_entities = []    # For all dataset to avoid duplicates
-        self.cue_words = []         # For all dataset to avoid duplicates
-        self.DF = {}                # Dataset-wise word frequency
-        self.name = name            # Name of the dataset file
+        self.proper_nouns = []          # For all dataset to avoid duplicates
+        self.named_entities = set()     # For all dataset to avoid duplicates
+        self.cue_words = []             # For all dataset to avoid duplicates
+        self.DF = {}                    # Dataset-wise word frequency
+        self.name = name                # Name of the dataset file
 
     def add_document(self, doc, doc_id, summary):
         if doc_id not in self.documents:
@@ -107,7 +107,7 @@ class Dataset():
                     tokenized_sent = []
                     for token in sentence:
                         if not token.is_punct:  # Do not consider punctuature
-                            norm_token = token.text.casefold()  # Try lemma
+                            norm_token = token.text.casefold()  # Try .lemma_
                             tokenized_sent.append(token.text)
                             if token.pos_ == 'PROPN' and \
                                norm_token not in self.proper_nouns:
@@ -136,8 +136,7 @@ class Dataset():
                 # Record named entities
                 for ent in tokenized_article.ents:
                     norm_ent = ent.text.casefold()
-                    if norm_ent not in self.named_entities:
-                        self.named_entities.append(norm_ent)
+                    self.named_entities.add(norm_ent)
 
                 # Similarity among sentences in same document
                 sent_sim = {}
