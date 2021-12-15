@@ -1,19 +1,20 @@
 from Sentence import Sentence
+import spacy
 
 
 class Document():
     def __init__(self, doc=None, doc_id=0, summary=None):
-        self.id = str(doc_id)
-        self.sentences = {}
-        self.summary = None
-        self.termFrequencies = {}
-        self.highlightsTF = {}
-        self.HF = {}
-        self.sentSimilarities = {}
-        self.sentRanks = {}
-        self.nums = []
-        self.mean_length = 0
-        self.tot_tokens = 0
+        self.id = str(doc_id)           # Document Identifier
+        self.sentences = {}             # Sentences of the Document
+        self.summary = None             # Summary of the Document
+        self.termFrequencies = {}       # Document-wise Term Frequencies
+        self.summaryTF = {}             # Term Frequencies in the Summary
+        self.summaryOC = {}             # Summary Terms Occurrences
+        self.sentSimilarities = {}      # Similarity computed for all sentences
+        self.sentRanks = {}             # Rankings of the Sentences
+        self.nums = []                  # List of numerical tokens
+        self.mean_length = 0            # Mean length of sentences in document
+        self.tot_tokens = 0             # Total tokens in the document
 
         if summary is not None:
             self.add_summary(summary)
@@ -78,40 +79,40 @@ class Document():
             return
         else:
             self.summary = summary
-            # highlights term frequencies
+            # summary term frequencies
             for token in summary:
                 norm_token = token.casefold()
-                if norm_token not in self.highlightsTF:
-                    self.highlightsTF[norm_token] = 1
+                if norm_token not in self.summaryTF:
+                    self.summaryTF[norm_token] = 1
                 else:
-                    self.highlightsTF[norm_token] += 1
-            self.highlightsTF = dict(sorted(self.highlightsTF.items(),
-                                     key=lambda x: x[1]))
-            # highlights word occurrence
+                    self.summaryTF[norm_token] += 1
+            self.summaryTF = dict(sorted(self.summaryTF.items(),
+                                  key=lambda x: x[1]))
+            # summary word occurrence -> occurrence among sentences in summary
             sum_sentences = summary.splitlines()
             updates = {}
             for sentence in sum_sentences:
                 for token in summary.split(' '):
                     updates[token] = False
                     if token in sentence and not updates[token]:
-                        if token not in self.HF:
-                            self.HF[token] = 1
+                        if token not in self.summaryOC:
+                            self.summaryOC[token] = 1
                         else:
-                            self.HF[token] += 1
+                            self.summaryOC[token] += 1
                         updates[token] = True
                 updates[token] = False  # Ensures each token is counted once
 
-            # Normalization of HF
-            for key in self.HF:
-                self.HF[key] /= len(self.HF)
+            # Normalization of Summary Co Occurrence
+            for key in self.summaryOC:
+                self.summaryOC[key] /= len(self.summaryOC)
 
     def add_sentRank(self, text, rank):
         if isinstance(rank, float) and isinstance(text, str):
             if text not in self.sentRanks:
                 self.sentRanks[text] = rank
-            else:
-                print('Entry \"{}\" already exist in record, skipping.'
-                      .format(text))
+            # else:
+            #     print('Entry \"{}\" already exist in record, skipping.'
+            #           .format(text))
                 # Maybe try with accumulating them and see if rouge score up
         else:
             print('Expected text and rank to be of type string and float, but '
@@ -119,17 +120,30 @@ class Document():
             return
 
     def compute_scores(self, properNouns, DF_dict, namedEntities, scores=[]):
+        # Computed here to avoid multiple recomputations in sentences
+        nlp = spacy.load('en_core_web_md')
+        summary = nlp(self.summary)
+        tokenized_summary = []
+        for sentence in summary.sents:
+            tokenized_sent = []
+            for token in sentence:
+                if not token.is_punct:
+                    norm_token = token.text.casefold()
+                    tokenized_sent.append(norm_token)
+            tokenized_summary.append(tokenized_sent)
+
         attributes = {'termFrequencies': self.termFrequencies,
-                      'sents_num': len(self.sentences),
+                      'sentences': self.sentences,
                       'properNouns': properNouns,
                       'similarityScores': self.sentSimilarities,
                       'summary': self.summary,
+                      'tokenized_summary': tokenized_summary,
                       'numbers': self.nums,
                       'documentsFrequencies': DF_dict,
                       'sentenceRanks': self.sentRanks,
                       'meanSentenceLength': self.mean_length,
-                      'highlightsTF': self.highlightsTF,
-                      'highlightsOC': self.HF,
+                      'summaryTF': self.summaryTF,
+                      'summaryOC': self.summaryOC,
                       'namedEntities': namedEntities}
         for sentence in self.sentences:
             # attributes['similarityScore'] = self.sentSimilarities[sentence]

@@ -6,25 +6,25 @@ import numpy as np
 
 class Scores():
     def __init__(self):
-        self.TF = 0
-        self.sent_location = 0
-        self.cue = 0
-        self.proper_noun = 0
-        self.co_occour = 0
-        self.sent_similarity = 0  # Semantic similarity
-        self.num_val = 0
-        self.TF_ISF_IDF = 0
-        self.sent_rank = 0  # Text rank
-        self.sent_length = 0
-        self.pos_keywords = 0
-        self.neg_keywords = 0
+        self.TF = 0                 # Term Frequency Score
+        self.sent_location = 0      # Sentence Location Score
+        self.cue = 0                # Cue Words Score
+        self.proper_noun = 0        # Proper Nouns Score
+        self.co_occour = 0          # Co-Occurrence Score
+        self.sent_similarity = 0    # Semantic Similarity Score
+        self.num_val = 0            # Numerical Value Score
+        self.TF_ISF_IDF = 0         # TF-IDF Score
+        self.sent_rank = 0          # Text Rank Score
+        self.sent_length = 0        # Sentence Length Score
+        self.pos_keywords = 0       # Positive Keywords Score
+        self.neg_keywords = 0       # Negative Keywords Score
         # self.busy_path = 0
         # self.aggregate_simm = 0
         # self.word_simm_sents = 0
         # self.word_simm_par = 0
         # self.IQS = 0
-        self.thematic_features = 0
-        self.named_entities = 0
+        self.thematic_features = 0  # Thematic Features Score
+        self.named_entities = 0     # Named Entities Score
 
     def zero(self):  # Sets all values to 0
         for el in self.__dict__:
@@ -43,7 +43,7 @@ class Scores():
 
     def set_sent_location(self, attributes):
         sent_id = attributes['sent_id']
-        sent_len = attributes['sents_num']
+        sent_len = len(attributes['sentences'])
         [ED, NB1, NB2, NB3, FaR] = attributes['location_score_filter']
         th = attributes['location_threshold']
 
@@ -169,24 +169,64 @@ class Scores():
 
         # a parabola is used as an implicit treshold
         sent_len = len(sentence)
-        if sent_len < 2*mean_length:  # otherwise 0
+        if sent_len < 2*mean_length:  # otherwise 0 -> implicit
             self.sent_length = ((-1/mean_length**2)) * \
                                (sent_len**2) + \
                                ((2/mean_length)*sent_len)
 
     def set_posnegScore(self, attributes):
-        sentence = attributes['tokenized']
-        # summary_tf = attributes['highlightsTF']
-        highlightsOC = attributes['highlightsOC']
-        for token in sentence:
-            if token in highlightsOC:
-                self.pos_keywords += sentence.count(token) * \
-                                     highlightsOC[token]
-        self.pos_keywords /= len(sentence)
+        # Use tokenized version for summary and document's sentences
+        summary = attributes['tokenized_summary']  # Already casefold
+        sentences = [x.tokenized for x in attributes['sentences'].values()]
+        sents_not_in_summary = len(sentences) - len(summary)
+
+        # Make both case-insensitive
+        casefold_sents = []
+        for sentence in sentences:
+            casefold_tokens = []
+            for token in sentence:
+                casefold_tokens.append(token.casefold())
+            casefold_sents.append(casefold_tokens)
+        sentences = casefold_sents
+
+        # Prior Probability
+        prior = len(summary) / len(sentences)
+
+        # Conditional and Event Probability
+        reduced_sent = set()
+        for token in attributes['tokenized']:
+            reduced_sent.add(token.casefold())
+
+        for token in reduced_sent:
+            count_summary = 0
+            count_dataset = 0
+            for sentence in summary:
+                if token in sentence:
+                    count_summary += 1
+            for sentence in sentences:
+                if token in sentence:
+                    count_dataset += 1
+
+            inverse_summary_count = len(summary)-count_summary
+
+            conditional_prob = count_summary / len(summary)
+            conditional_prob_neg = inverse_summary_count / sents_not_in_summary
+
+            event_prob = count_dataset / len(sentences)
+
+            # Scores computing
+            occurring_frequency = attributes['tokenized'].count(token)
+            probability = (conditional_prob * prior) / event_prob
+            probability_neg = (conditional_prob_neg * 1-prior) / event_prob
+
+            self.pos_keywords += occurring_frequency * probability
+            self.neg_keywords -= occurring_frequency * probability_neg
+
+        self.pos_keywords /= len(attributes['tokenized'])
+        self.neg_keywords /= len(attributes['tokenized'])
 
     def set_thematicWordsScore(self, attributes):
         sentence = attributes['tokenized']
-        # sent_id = attributes['sent_id']
         doc_tf = attributes['termFrequencies']
 
         mean = sum(doc_tf.values())/len(doc_tf)

@@ -3,9 +3,9 @@ from Scores import Scores
 
 class Sentence():
     def __init__(self, sent=None, sent_id=0):
-        self.id = str(sent_id)
-        self.tokenized = sent
-        self.scores = Scores()
+        self.id = str(sent_id)      # Unique identifier of the sentence
+        self.tokenized = sent       # Tokenized Sentence
+        self.scores = Scores()      # Scores of the sentence
 
     def toJson(self):
         data = self.__dict__

@@ -8,6 +8,7 @@ from Document import Document
 from rouge import Rouge
 import pandas as pd
 import numpy as np
+import time
 
 
 # References for dataset:
@@ -81,7 +82,7 @@ class Dataset():
             self.documents[doc_id] = temp_doc
 
     def process_dataset(self, dataset_in, doc_th=3, save=True, scoreList=[]):
-
+        start_time = time.time()
         # Medium dataset for spacy to allow sentence similarity computation
         nlp = spacy.load('en_core_web_md')
 
@@ -172,6 +173,8 @@ class Dataset():
                 pbar_proc.update(1)
         pbar_proc.close()
 
+        print('Total Processing Time: {}'.format(time.time()-start_time))
+
     def info(self, verbose=True):
         if verbose:
             print('Dataset name: {}\n'
@@ -204,6 +207,7 @@ class Dataset():
                 if count < len(doc.summary.split('\n')):
                     sentence = document.get_sentence(sent_id, True)
                     ordered_doc += '{}\n'.format(sentence)
+                    count += 1
             summarized_dataset[doc.id] = ordered_doc
         return summarized_dataset
 
@@ -297,14 +301,19 @@ if __name__ == '__main__':
 
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
-    CNN_processed.process_dataset(CNN_dataset['train'])
+    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=1)
     rouge_result = CNN_processed.rouge_computation(show=False, weights=weights)
+
+    # summaryzation = CNN_processed.summarization(weights)
+    # for key in summaryzation:
+    #     print('* {} summary:'.format(key), '*'*(70-len(key)))
+    #     print(summaryzation[key])
 
     mean_rouge = rouge_result['Rouge'].mean()
     mean_precision = rouge_result['Precision'].mean()
     mean_fscore = rouge_result['F-score'].mean()
 
-    print('\n\n')
+    print('\n')
     print('Average stats: Rouge {:0.4f}, Precision {:0.4f}, F-Score {:0.4f}'
           .format(mean_rouge, mean_precision, mean_fscore))
 
