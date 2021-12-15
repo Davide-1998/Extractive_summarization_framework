@@ -19,9 +19,9 @@ import time
 class Dataset():
     def __init__(self, name='Processed_dataset'):
         self.documents = {}
-        self.proper_nouns = []          # For all dataset to avoid duplicates
+        self.proper_nouns = set()       # For all dataset to avoid duplicates
         self.named_entities = set()     # For all dataset to avoid duplicates
-        self.cue_words = []             # For all dataset to avoid duplicates
+        self.cue_words = set()          # For all dataset to avoid duplicates
         self.DF = {}                    # Dataset-wise word frequency
         self.name = name                # Name of the dataset file
 
@@ -106,20 +106,20 @@ class Dataset():
                 for sentence in tokenized_article.sents:
                     tokenized_sent = []
                     for token in sentence:
-                        if not token.is_punct:  # Do not consider punctuature
-                            norm_token = token.text.casefold()  # Try .lemma_
-                            tokenized_sent.append(token.text)
-                            if token.pos_ == 'PROPN' and \
-                               norm_token not in self.proper_nouns:
-                                self.proper_nouns.append(norm_token)
-                            if token.like_num:  # Record numerical token
-                                num_tokens.append(norm_token)
+                        # if not token.is_punct:  # Do not consider punctuature
+                        norm_token = token.text.casefold()  # Try .lemma_
+                        tokenized_sent.append(token.text)
 
-                            # Frequency among documents
-                            if doc_id not in self.DF:
-                                self.DF[doc_id] = {}
-                            if norm_token not in self.DF[doc_id]:
-                                self.DF[doc_id][norm_token] = 1
+                        if token.pos_ == 'PROPN':
+                            self.proper_nouns.add(norm_token)
+                        if token.like_num:  # Record numerical token
+                            num_tokens.append(norm_token)
+
+                        # Frequency among documents
+                        if doc_id not in self.DF:
+                            self.DF[doc_id] = {}
+                        if norm_token not in self.DF[doc_id]:
+                            self.DF[doc_id][norm_token] = 1
 
                     segmented_document.append(tokenized_sent)  # Text object
                 self.add_document(segmented_document, doc_id, summary)
@@ -128,15 +128,11 @@ class Dataset():
 
                 # Record sentence ranking
                 for phrase in tokenized_article._.phrases:
-                    if phrase.rank > 0:
-                        norm_text = phrase.text.casefold()
-                        self.documents[doc_id].add_sentRank(norm_text,
-                                                            phrase.rank)
+                    norm_text = phrase.text.casefold()
+                    self.add_sentenceRank(doc_id, norm_text, phrase.rank)
 
                 # Record named entities
-                for ent in tokenized_article.ents:
-                    norm_ent = ent.text.casefold()
-                    self.named_entities.add(norm_ent)
+                self.add_namedEntities(tokenized_article)
 
                 # Similarity among sentences in same document
                 sent_sim = {}
@@ -173,6 +169,26 @@ class Dataset():
         pbar_proc.close()
 
         print('Total Processing Time: {}'.format(time.time()-start_time))
+
+    def add_proper_noun(self, obj):
+        if isinstance(obj, spacy.tokens.Token):
+            if obj.pos_ == 'PROPN':
+                self.proper_nouns.add(obj.text.casefold())
+            else:
+                return
+        elif isinstance(obj, str):
+            self.proper_nouns.add(obj.casefold())
+        else:
+            print('A spacy.tokens.Token or a string must be passed as input')
+
+    def add_namedEntities(self, spacyObject):
+        for ent in spacyObject.ents:
+            norm_ent = ent.text.casefold()
+            self.named_entities.add(norm_ent)
+
+    def add_sentenceRank(self, doc_id, sentenceText, sentenceRank):
+        if sentenceRank > 0:
+            self.documents[doc_id].add_sentRank(sentenceText, sentenceRank)
 
     def info(self, verbose=True):
         if verbose:
@@ -222,50 +238,6 @@ class Dataset():
             hyp_rouge = doc
             ref_rouge = self.documents[doc_id].summary
 
-            '''
-            hyp = doc.split('\n')
-            ref = self.documents[doc_id].summary.split('\n')
-
-            # Split sentences in tokens and retain same number of sentences
-            ref = [sent.split(' ') for sent in ref]
-            hyp = [sent.split(' ') for sent in hyp][:len(ref)]  # to compare
-            if sentences:
-                print('-'*80)
-                print(hyp, '\n', '-'*39, 'VS', '-'*39, '\n', ref)
-                print('-'*80)
-
-            # n-gram merging
-            for summary in [ref, hyp]:
-                for sentence in summary:
-                    temp = []
-                    i = 0
-                    while i+n < len(sentence):
-                        temp.append(sentence[i:i+n])
-                        i += 1
-                    summary[summary.index(sentence)] = temp
-
-            # Count ngram matching
-            summary_match_count = 0
-            for sentence in hyp:
-                ref_ngram_list = ref[hyp.index(sentence)]
-                for ngram in sentence:
-                    if ngram in ref_ngram_list:
-                        summary_match_count += 1
-
-            # Rouge-N
-            ref_ngram_count = sum(len(i) for i in ref)
-            rouge_n = summary_match_count/ref_ngram_count
-
-            # Precision -> how much of the summarization is useful
-            hyp_ngram_count = sum(len(i) for i in hyp)
-            rouge_precision = summary_match_count / hyp_ngram_count
-            if show:
-                print('\nDocument id: {}'.format(doc_id))
-                print(' Rouge-{}: {:0.4f}'.format(n, rouge_n))
-                # print(' Rouge Recall: {:0.4f}'.format(rouge_recall))
-                print(' Rouge Precision: {:0.4f}\n'.format(rouge_precision))
-            '''
-
             metric = 'rouge-%d' % n
             rouge = Rouge(metrics=[metric])
             scores = rouge.get_scores(ref_rouge, hyp_rouge)[0][metric]
@@ -305,6 +277,7 @@ if __name__ == '__main__':
 
     # summaryzation = CNN_processed.summarization(weights)
     # for key in summaryzation:
+    #     print(CNN_processed.documents[key].summary)
     #     print('* {} summary:'.format(key), '*'*(70-len(key)))
     #     print(summaryzation[key])
 
@@ -315,28 +288,3 @@ if __name__ == '__main__':
     print('\n')
     print('Average stats: Rouge {:0.4f}, Precision {:0.4f}, F-Score {:0.4f}'
           .format(mean_rouge, mean_precision, mean_fscore))
-
-    '''
-    # CNN_processed = Dataset()
-    # CNN_processed.load('CNN_processed.json')
-
-    # test_dataset = Dataset(name='Cats_dataset')
-    # test_dataset.process_dataset(test_train)
-    # print(test_dataset.rouge_computation(n=2))
-
-    # rouge = Rouge()
-    # scores = rouge.get_scores(test_train[0]['highlights'],
-    #                           test_train[0]['article'])
-    # print(scores)
-
-    CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
-    CNN_processed = Dataset(name='CNN_processed.json')
-    CNN_processed.process_dataset(CNN_dataset['train'])
-
-    CNN_processed.print_scores(onlyTotal=False)
-    CNN_processed.rouge_computation(2, show=True)
-
-    summary = CNN_processed.summarization()
-    for key in summary:
-        print(summary[key])
-    '''
