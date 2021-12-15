@@ -134,22 +134,21 @@ class Scores():
         self.num_val = count/len(sent)  # Token-wise length
 
     def set_TF_ISF_IDF(self, attributes):
-        sent = attributes['tokenized']
+        sentence = attributes['tokenized']
         TF = attributes['termFrequencies']
         DF = attributes['documentsFrequencies']
 
         # Nobata et al 2001
         num_doc = len(DF)
         TF_ISF_IDF = 0
-        for token in sent:
+        for token in sentence:
             token = token.casefold()
             doc_has_token = 0
             for doc in DF:
                 doc_has_token += DF[doc].get(token, 0)
             IDF = log(num_doc/(doc_has_token))
             TF_ISF_IDF += (TF[token]/1+TF[token])*IDF  # Token-wise
-        self.TF_ISF_IDF = TF_ISF_IDF
-        return
+            self.TF_ISF_IDF += TF_ISF_IDF
 
     def set_sentRank(self, attributes):
         sentence = attributes['tokenized']
