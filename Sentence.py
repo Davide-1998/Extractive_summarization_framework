@@ -56,7 +56,11 @@ class Sentence():
 
         if len(score_list) > 0:
             for key in score_list:
-                functions.get(key)(attributes)
+                if key in functions:
+                    functions.get(key)(attributes)
+                else:
+                    print('Invalid key {}.\nAvailable ones are: {}'
+                          .format(key, functions.keys()))
         else:
             for key in functions:  # If none in input, all scorings will run
                 functions.get(key)(attributes)

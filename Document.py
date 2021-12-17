@@ -10,7 +10,6 @@ class Document():
         self.termFrequencies = {}       # Document-wise Term Frequencies
         self.sentSimilarities = {}      # Similarity computed for all sentences
         self.sentRanks = {}             # Rankings of the Sentences
-        # self.nums = []                  # List of numerical tokens
         self.mean_length = 0            # Mean length of sentences in document
         self.tot_tokens = 0             # Total tokens in the document
 
@@ -93,7 +92,8 @@ class Document():
             return
 
     def compute_scores(self, properNouns=[], DF_dict={}, namedEntities=[],
-                       scores=[], numerical_tokens=[], spacy_pipeline=None):
+                       scores=[], numerical_tokens=[], spacy_pipeline=None,
+                       _reset=True):
         # Computed here to avoid multiple recomputations in sentences
         if spacy_pipeline is None:
             nlp = spacy.load('en_core_web_md')
@@ -121,10 +121,9 @@ class Document():
                       'meanSentenceLength': self.mean_length,
                       'namedEntities': namedEntities}
         for sentence in self.sentences:
-            # attributes['similarityScore'] = self.sentSimilarities[sentence]
             self.sentences[sentence].compute_Scores(attributes,
                                                     score_list=scores,
-                                                    reset=True)
+                                                    reset=_reset)
 
     def add_sentSimm(self, simmDict):
         self.sentSimilarities.update(simmDict)

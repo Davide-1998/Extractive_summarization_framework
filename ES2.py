@@ -5,6 +5,7 @@ import os
 from tqdm import tqdm
 import pytextrank
 from Document import Document
+from Scores import Scores
 import pandas as pd
 import numpy as np
 import time
@@ -20,16 +21,18 @@ class Dataset():
         self.documents = {}
         self.proper_nouns = set()       # For all dataset to avoid duplicates
         self.named_entities = set()     # For all dataset to avoid duplicates
-        self.cue_words = set()          # For all dataset to avoid duplicates
+        # self.cue_words = set()          # For all dataset to avoid duplicates
         self.DF = {}                    # Dataset-wise word frequency
         self.name = name                # Name of the dataset file
         self.numerical_tokens = set()   # Enforce shared knowledge among docs
 
-    def add_document(self, doc, doc_id, summary):
+    def add_document(self, doc, doc_id, summary, suppress_warning=False):
         if doc_id not in self.documents:
             self.documents[doc_id] = Document(doc, doc_id, summary)
         else:
-            print('Key already exist, run stopped to preserve consistency')
+            if not suppress_warning:
+                print('Key already exist, document not overwritten to preserve'
+                      ' consistency')
             return
 
     def rename(self, name):
@@ -81,7 +84,8 @@ class Dataset():
             temp_doc.from_dict(loaded_document)
             self.documents[doc_id] = temp_doc
 
-    def process_dataset(self, dataset_in, doc_th=3, save=True, scoreList=[]):
+    def process_dataset(self, dataset_in, doc_th=3, save=True, scoreList=[],
+                        suppress_warnings=False):
         start_time = time.time()
         # Medium dataset for spacy to allow sentence similarity computation
         nlp = spacy.load('en_core_web_md')
@@ -120,7 +124,8 @@ class Dataset():
                             self.DF[doc_id][norm_token] = 1
 
                     segmented_document.append(tokenized_sent)  # Text object
-                self.add_document(segmented_document, doc_id, summary)
+                self.add_document(segmented_document, doc_id,
+                                  summary, suppress_warnings)
                 # self.documents[doc_id].add_nums(num_tokens)
                 self.documents[doc_id].compute_meanLength()
 
@@ -165,7 +170,8 @@ class Dataset():
         print('Total Processing Time: {:0.4f}[sec]'
               .format(time.time()-start_time))
 
-    def process_documents(self, docs_id, scoreList, spacyPipe=None):
+    def process_documents(self, docs_id, scoreList, spacyPipe=None,
+                          reset=True):
         with tqdm(total=len(docs_id)) as pbar_proc:
             for doc in docs_id:
                 pbar_proc.set_description('computing scores: ')
@@ -173,7 +179,8 @@ class Dataset():
                 document.compute_scores(self.proper_nouns, self.DF,
                                         self.named_entities, scoreList,
                                         self.numerical_tokens,
-                                        spacy_pipeline=spacyPipe)
+                                        spacy_pipeline=spacyPipe,
+                                        _reset=reset)
                 pbar_proc.update(1)
         pbar_proc.close()
 
@@ -235,6 +242,9 @@ class Dataset():
                 doc.print_scores(_text=text, _onlyTotal=onlyTotal)
         else:
             print('No documents from which print scores')
+
+    def get_num_weights(self):
+        return len(Scores().__dict__)
 
     def summarization(self, weights=[], show_scores=False):
         summarized_dataset = {}
@@ -332,36 +342,51 @@ def ngram_extraction(n, plain_text):
 
 if __name__ == '__main__':
 
-    test_train = [{'id': 0,
-                   'article': 'Two cats where found near the old '
-                              'tree beside the river.\nLocal authorities '
-                              'are ashamed: "Not even in the films" said '
-                              'the chief officer.\n'
-                              'New developments soon',
-                   'highlights': 'Two cats where found near the old tree.\n'
-                                 'New developments soon.'
-                   }]
+    scores = []
 
-    weights = np.ones(14)
-
+    # Load dataset into a variable
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
+
+    # Create a new instance of the Dataset class with a custom name
     CNN_processed = Dataset(name='CNN_processed.json')
-    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=3)
+    weights = np.ones(CNN_processed.get_num_weights())
+
+    # Populate the Dataset class with a custom number of document
+    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=1,
+                                  scoreList=scores)
+    # CNN_processed.print_scores(onlyTotal=False)
+
+    # Compute the summarization scores and apply the available weights
     rouge_result = CNN_processed.rouge_computation(show=True,
                                                    weights=weights,
                                                    sentences=False,
                                                    n=2)
+    # Meena&Gopalani environment
+    MG_scores = {
+            'comb1': ['TF_IDF', 'Co_occurrence', 'Sentence_length'],
+            'comb2': ['Co_occurrence', 'Sentence_length', 'Sentence_location'],
+            'comb3': ['TF_IDF', 'Co_occurrence', 'Sentence_length',
+                      'Sentence_location'],
+            'comb4': ['Sentence_length', 'Sentence_location', 'Named_entities',
+                      'Positive', 'Proper_noun'],
+            'comb5': ['Co_occurrence', 'Sentence_length', 'Sentence_location',
+                      'Named_entities', 'Positive', 'Proper_noun'],
+            'comb6': ['TF_IDF', 'Co_occurrence', 'Sentence_length',
+                      'Sentence_location', 'Named_entities', 'Positive',
+                      'Negative', 'Sentence_rank'],
+            'comb7': ['TF_IDF', 'Co_occurrence', 'Sentence_length',
+                      'Sentence_location', 'Named_entities', 'Positive',
+                      'Negative']}
 
-    summarization = CNN_processed.summarization(weights, False)
-    # for key in summaryzation:
-    #     print(CNN_processed.documents[key].summary)
-    #     print('* {} summary:'.format(key), '*'*(70-len(key)))
-    #     print(summaryzation[key].score)
-
-    # mean_rouge = rouge_result['Rouge'].mean()
-    # mean_precision = rouge_result['Precision'].mean()
-    # mean_fscore = rouge_result['F-score'].mean()
-
-    # print('\n')
-    # print('Average stats: Rouge {:0.4f}, Precision {:0.4f}, F-Score {:0.4f}'
-    #      .format(mean_rouge, mean_precision, mean_fscore))
+    MG_test = Dataset(name='MG_test_dataset.json')
+    MG_results = pd.DataFrame()
+    MG_num_docs = 15
+    for comb, scores in MG_scores.items():
+        MG_test.process_dataset(CNN_dataset['train'], doc_th=MG_num_docs,
+                                scoreList=scores, suppress_warnings=True)
+        MG_rouge = MG_test.rouge_computation()
+        MG_results = pd.concat([MG_results, MG_rouge.loc['Mean']], axis=1,
+                               ignore_index=True)
+    print(MG_results.T)
+    # Produce the available summarization
+    # summarization = CNN_processed.summarization(weights, False)
