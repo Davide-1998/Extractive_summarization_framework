@@ -49,7 +49,8 @@ class Sentence():
                      'TF_IDF': self.scores.set_TF_ISF_IDF,
                      'Sentence_rank': self.scores.set_sentRank,
                      'Sentence_length': self.scores.set_sentLength,
-                     'Positive_Negative': self.scores.set_posnegScore,
+                     'Positive': self.scores.set_positiveScore,
+                     'Negative': self.scores.set_negativeScore,
                      'Thematic_words': self.scores.set_thematicWordsScore,
                      'Named_entities': self.scores.set_namedEntitiesScore}
 

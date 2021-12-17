@@ -8,7 +8,7 @@ class Scores():
     def __init__(self):
         self.TF = 0                 # Term Frequency Score
         self.sent_location = 0      # Sentence Location Score
-        self.cue = 0                # Cue Words Score
+        # self.cue = 0                # Cue Words Score
         self.proper_noun = 0        # Proper Nouns Score
         self.co_occour = 0          # Co-Occurrence Score
         self.sent_similarity = 0    # Semantic Similarity Score
@@ -97,7 +97,7 @@ class Scores():
             if token.casefold() in prop_noun_list:
                 self.proper_noun += tf_dict[token.casefold()]
 
-    def set_co_occour(self, attributes):
+    def set_co_occour(self, attributes):  # Must be re-thought
         tokenized_sentence = attributes['tokenized']
         summary = attributes['summary']
         tf_dict = attributes['termFrequencies']
@@ -113,7 +113,6 @@ class Scores():
 
     def set_similarity_score(self, attributes):
         # Fattah & Ren 2009
-
         sent_id = attributes['sent_id']
         score = attributes['similarityScores']
 
@@ -173,7 +172,50 @@ class Scores():
                                (sent_len**2) + \
                                ((2/mean_length)*sent_len)
 
-    def set_posnegScore(self, attributes):
+    def set_positiveScore(self, attributes):
+        # Use tokenized version for summary and document's sentences
+        summary = attributes['tokenized_summary']  # Already casefold
+        sentences = [x.tokenized for x in attributes['sentences'].values()]
+
+        # Make both case-insensitive
+        casefold_sents = []
+        for sentence in sentences:
+            casefold_tokens = []
+            for token in sentence:
+                casefold_tokens.append(token.casefold())
+            casefold_sents.append(casefold_tokens)
+        sentences = casefold_sents
+
+        # Prior Probability
+        prior = len(summary) / len(sentences)
+
+        # Conditional and Event Probability
+        reduced_sent = set()
+        for token in attributes['tokenized']:
+            reduced_sent.add(token.casefold())
+
+        for token in reduced_sent:
+            count_summary = 0
+            count_dataset = 0
+            for sentence in summary:
+                if token in sentence:
+                    count_summary += 1
+            for sentence in sentences:
+                if token in sentence:
+                    count_dataset += 1
+
+            conditional_prob = count_summary / len(summary)
+            event_prob = count_dataset / len(sentences)
+
+            # Scores computing
+            occurring_frequency = attributes['tokenized'].count(token)
+            probability = (conditional_prob * prior) / event_prob
+
+            self.pos_keywords += occurring_frequency * probability
+
+        self.pos_keywords /= len(attributes['tokenized'])
+
+    def set_negativeScore(self, attributes):
         # Use tokenized version for summary and document's sentences
         summary = attributes['tokenized_summary']  # Already casefold
         sentences = [x.tokenized for x in attributes['sentences'].values()]
@@ -207,21 +249,14 @@ class Scores():
                     count_dataset += 1
 
             inverse_summary_count = len(summary)-count_summary
-
-            conditional_prob = count_summary / len(summary)
             conditional_prob_neg = inverse_summary_count / sents_not_in_summary
-
             event_prob = count_dataset / len(sentences)
 
             # Scores computing
             occurring_frequency = attributes['tokenized'].count(token)
-            probability = (conditional_prob * prior) / event_prob
             probability_neg = (conditional_prob_neg * 1-prior) / event_prob
-
-            self.pos_keywords += occurring_frequency * probability
             self.neg_keywords -= occurring_frequency * probability_neg
 
-        self.pos_keywords /= len(attributes['tokenized'])
         self.neg_keywords /= len(attributes['tokenized'])
 
     def set_thematicWordsScore(self, attributes):
