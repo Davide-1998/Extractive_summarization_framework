@@ -1,6 +1,5 @@
 from Sentence import Sentence
 import spacy
-import time
 
 
 class Document():
@@ -11,7 +10,7 @@ class Document():
         self.termFrequencies = {}       # Document-wise Term Frequencies
         self.sentSimilarities = {}      # Similarity computed for all sentences
         self.sentRanks = {}             # Rankings of the Sentences
-        self.nums = []                  # List of numerical tokens
+        # self.nums = []                  # List of numerical tokens
         self.mean_length = 0            # Mean length of sentences in document
         self.tot_tokens = 0             # Total tokens in the document
 
@@ -93,8 +92,8 @@ class Document():
                   'got input of type {} and {}'.format(type(text), type(rank)))
             return
 
-    def compute_scores(self, properNouns, DF_dict, namedEntities, scores=[],
-                       spacy_pipeline=None):
+    def compute_scores(self, properNouns=[], DF_dict={}, namedEntities=[],
+                       scores=[], numerical_tokens=[], spacy_pipeline=None):
         # Computed here to avoid multiple recomputations in sentences
         if spacy_pipeline is None:
             nlp = spacy.load('en_core_web_md')
@@ -116,7 +115,7 @@ class Document():
                       'similarityScores': self.sentSimilarities,
                       'summary': self.summary,
                       'tokenized_summary': tokenized_summary,
-                      'numbers': self.nums,
+                      'numbers': numerical_tokens,
                       'documentsFrequencies': DF_dict,
                       'sentenceRanks': self.sentRanks,
                       'meanSentenceLength': self.mean_length,

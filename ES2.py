@@ -1,16 +1,14 @@
-from datasets import load_dataset, load_metric
+from datasets import load_dataset
 import spacy
 import json
 import os
 from tqdm import tqdm
 import pytextrank
 from Document import Document
-from rouge import Rouge
 import pandas as pd
 import numpy as np
 import time
 
-import threading
 
 # References for dataset:
 # https://huggingface.co/datasets/cnn_dailymail
@@ -25,6 +23,7 @@ class Dataset():
         self.cue_words = set()          # For all dataset to avoid duplicates
         self.DF = {}                    # Dataset-wise word frequency
         self.name = name                # Name of the dataset file
+        self.numerical_tokens = set()   # Enforce shared knowledge among docs
 
     def add_document(self, doc, doc_id, summary):
         if doc_id not in self.documents:
@@ -87,11 +86,10 @@ class Dataset():
         # Medium dataset for spacy to allow sentence similarity computation
         nlp = spacy.load('en_core_web_md')
 
-        # Making textrank pipe
+        # Adding textrank pipe
         nlp.add_pipe('textrank', last=True)
 
         # Generating tokenized structure for feature evaluation
-
         i = 0
         with tqdm(total=len(dataset_in)) as pbar_load:
             for key in dataset_in:
@@ -102,19 +100,18 @@ class Dataset():
                 tokenized_article = nlp(key['article'])  # Spacy object
 
                 segmented_document = []
-                num_tokens = []
 
                 for sentence in tokenized_article.sents:
                     tokenized_sent = []
                     for token in sentence:
-                        # if not token.is_punct:  # Do not consider punctuature
                         norm_token = token.text.casefold()  # Try .lemma_
                         tokenized_sent.append(token.text)
 
-                        if token.pos_ == 'PROPN':
-                            self.proper_nouns.add(norm_token)
-                        if token.like_num:  # Record numerical token
-                            num_tokens.append(norm_token)
+                        # Record proper nouns
+                        self.add_proper_noun(token)
+
+                        # Record numerical tokens
+                        self.add_numerical_token(token)
 
                         # Frequency among documents
                         if doc_id not in self.DF:
@@ -124,7 +121,7 @@ class Dataset():
 
                     segmented_document.append(tokenized_sent)  # Text object
                 self.add_document(segmented_document, doc_id, summary)
-                self.documents[doc_id].add_nums(num_tokens)
+                # self.documents[doc_id].add_nums(num_tokens)
                 self.documents[doc_id].compute_meanLength()
 
                 # Record sentence ranking
@@ -172,11 +169,11 @@ class Dataset():
         with tqdm(total=len(docs_id)) as pbar_proc:
             for doc in docs_id:
                 pbar_proc.set_description('computing scores: ')
-                self.documents[doc].compute_scores(self.proper_nouns,
-                                                   self.DF,
-                                                   self.named_entities,
-                                                   scoreList,
-                                                   spacy_pipeline=spacyPipe)
+                document = self.documents[doc]
+                document.compute_scores(self.proper_nouns, self.DF,
+                                        self.named_entities, scoreList,
+                                        self.numerical_tokens,
+                                        spacy_pipeline=spacyPipe)
                 pbar_proc.update(1)
         pbar_proc.close()
 
@@ -189,7 +186,16 @@ class Dataset():
         elif isinstance(obj, str):
             self.proper_nouns.add(obj.casefold())
         else:
-            print('A spacy.tokens.Token or a string must be passed as input')
+            print('A spacy.tokens.Token or a string must be given as input')
+
+    def add_numerical_token(self, obj):
+        if isinstance(obj, spacy.tokens.Token):
+            if obj.like_num:
+                self.numerical_tokens.add(obj.text.casefold())
+        elif isinstance(obj, str):
+            self.numerical_tokens.add(obj.casefold())
+        else:
+            print('A spacy.tokens.Token or a string must be given as input')
 
     def add_namedEntities(self, spacyObject):
         for ent in spacyObject.ents:
@@ -262,126 +268,66 @@ class Dataset():
         else:
             summarization = self.summarization(weights)
         rouge_results = {}
-        student_rouge = {}
 
         for doc_id, doc in summarization.items():
             # Split summaries in casefolded sentences
             hyp = doc.casefold()
             ref = self.documents[doc_id].summary.casefold()
 
-            hyp_flat = hyp.split(' ')
-            ref_flat = ref.split(' ')
-
-            hyp = hyp.split('\n')
-            ref = ref.split('\n')
-
-            if len(hyp) != len(ref):
-                print('Reference and hypotesys must be of same length.'
-                      ' Got: Hyp {} and Ref {}'.format(len(hyp), len(ref)))
-                return
+            hyp = ngram_extraction(n, hyp)
+            ref = ngram_extraction(n, ref)
 
             if sentences:
                 print('-'*80)
                 print(hyp, '\n', '-'*39, 'VS', '-'*39, '\n', ref)
                 print('-'*80)
 
-            # n-gram merging
-            for summary in [ref, hyp, ref_flat, hyp_flat]:
-                summary = [x.split(' ') for x in summary]
-                for sentence in summary:
-                    temp = []
-                    i = 0
-                    while i+n < len(sentence):
-                        temp.append(sentence[i:i+n])
-                        i += 1
-                    summary[summary.index(sentence)] = temp
-
-            # Student Rouge-N
-            ref_flat_copy = ref_flat.copy()
-            for ngram in hyp_flat:
-                if ngram in ref_flat_copy:
-                    ref_flat_copy.remove(ngram)
-            match_ngram = (len(ref_flat) - len(ref_flat_copy))
+            # Ngram grouping
+            match_ngram = 0
+            hyp_copy = hyp.copy()
+            for ngram in ref:
+                if ngram in hyp_copy:
+                    match_ngram += 1
+                    hyp_copy.remove(ngram)
 
             # Rouge-N
-            ref_ngram_count = sum(len(i) for i in ref)
+            ref_ngram_count = len(ref)
             rouge_n = match_ngram / ref_ngram_count
 
             # Precision -> how much of the summarization is useful
-            hyp_ngram_count = sum(len(i) for i in hyp)
+            hyp_ngram_count = len(hyp)
             rouge_precision = match_ngram / hyp_ngram_count
 
             # F1 score
-            F1 = 2 * ((rouge_precision * rouge_n)/(rouge_precision + rouge_n))
-            student_rouge[doc_id] = {'r': rouge_n, 'p': rouge_precision,
-                                     'f': F1}
-
-            # Module Rouge-N
-            metric = 'rouge-%d' % n
-            rouge = Rouge(metrics=[metric])
-            scores = rouge.get_scores(ref, hyp, avg=True)
-
-            # scores_l = rouge.get_scores(ref, hyp)[0]['rouge-l']
-            rouge_results[doc_id] = scores[metric]
-
-            # Count ngram matching
-            '''
-            summary_match_count = 0
-            for i in range(len(ref)):
-                ref_sentence = ref[i]
-                hyp_sentence = hyp[i]
-                max_sent_co_occor = 0
-                for ref_ngram in ref_sentence:
-                    original_ngram = ref_ngram
-                    co_occor = 0
-                    for hyp_ngram in hyp_sentence:
-                        if ref_ngram == hyp_ngram:
-                            next_idx = ref_sentence.index(ref_ngram) + 1
-                            if next_idx < len(ref_sentence):
-                                ref_ngram = ref_sentence[next_idx]
-                                co_occor += 1
-                            else:
-                                ref_ngram = original_ngram
-                                if co_occor+1 > max_sent_co_occor:
-                                    max_sent_co_occor += co_occor+1
-                                    co_occor = 0
-                        else:
-                            if co_occor > max_sent_co_occor:
-                                max_sent_co_occor += co_occor
-                            co_occor = 0
-                            ref_ngram = original_ngram
-
-                summary_match_count += max_sent_co_occor
-
-            # Rouge-N
-            ref_ngram_count = sum(len(i) for i in ref)
-            rouge_n = summary_match_count/ref_ngram_count
-
-            # Precision -> how much of the summarization is useful
-            hyp_ngram_count = sum(len(i) for i in hyp)
-            rouge_precision = summary_match_count / hyp_ngram_count
-
-            # F1 score
-            F1 = 2 * ((rouge_precision * rouge_n) / rouge_precision + rouge_n)
-
+            numerator = rouge_precision * rouge_n
+            denominator = rouge_precision + rouge_n
+            if denominator != 0:
+                F1 = 2 * (numerator / denominator)
+            else:
+                F1 = 0
             rouge_results[doc_id] = {'Rouge-%d' % n: rouge_n,
                                      'Precision': rouge_precision,
                                      'F1-score': F1}
-        pd_results = pd.DataFrame.from_dict(rouge_results, orient='index')
-        '''
 
+        pd_results = pd.DataFrame.from_dict(rouge_results, orient='index')
+        pd_results.loc['Mean'] = pd_results.mean()
         if show:
-            for doc_id, value in rouge_results.items():
-                print('Doc ID: {}'.format(doc_id))
-                print('\tRouge-{}: {:0.4f}'.format(n, value['Rouge-%d' % n]),
-                      '\n\tPrecision: {:0.4f}'.format(value['Precision']),
-                      '\n\tF1 Score: {:0.4f}'.format(value['F1-score']))
+            print(pd_results)
+        return pd_results
 
-        pd_student = pd.DataFrame.from_dict(student_rouge, orient='index')
-        pd_results = pd.DataFrame.from_dict(rouge_results, orient='index')
-        print(pd_student, '\n\nModule')
-        print(pd_results)
-        return  # pd_results
+
+def ngram_extraction(n, plain_text):
+    plain_text = plain_text.casefold()
+    plain_text = plain_text.split(' ')
+    tokenized_text = []
+    i = 0
+    while i+n < len(plain_text):
+        ngram = ''
+        for token in plain_text[i:i+n]:
+            ngram += '{} '.format(token)
+        tokenized_text.append(ngram.strip())
+        i += 1
+    return tokenized_text
 
 
 if __name__ == '__main__':
@@ -401,12 +347,12 @@ if __name__ == '__main__':
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset(name='CNN_processed.json')
     CNN_processed.process_dataset(CNN_dataset['train'], doc_th=3)
-    rouge_result = CNN_processed.rouge_computation(show=False,
+    rouge_result = CNN_processed.rouge_computation(show=True,
                                                    weights=weights,
                                                    sentences=False,
-                                                   n=1)
+                                                   n=2)
 
-    summaryzation = CNN_processed.summarization(weights, False)
+    summarization = CNN_processed.summarization(weights, False)
     # for key in summaryzation:
     #     print(CNN_processed.documents[key].summary)
     #     print('* {} summary:'.format(key), '*'*(70-len(key)))
