@@ -10,6 +10,7 @@ on the device. These modules are:
 - [Pytextrank](https://pypi.org/project/pytextrank/): Used for sentence ranking.
 - [Tqdm](https://pypi.org/project/tqdm/): Used for the progress bars.
 - [Optuna](https://optuna.org/): Used for the optimisation part.
+- [Pandas](https://pandas.pydata.org/): Used for representing the results in a compact way.
 
-It is possible to install all of them by running the following command:
-`pip3 install datasets pytextrank tqdm optuna`
+It is possible to install all of them by running the following command:  
+`pip3 install datasets pytextrank tqdm optuna pandas`
