@@ -25,6 +25,7 @@ class Dataset():
         self.DF = {}                    # Dataset-wise word frequency
         self.name = name                # Name of the dataset file
         self.numerical_tokens = set()   # Enforce shared knowledge among docs
+        self.spacy_pipeline_name = 'en_core_web_md'  # Minimum medium!
 
     def add_document(self, doc, doc_id, summary, suppress_warning=False):
         if doc_id not in self.documents:
@@ -84,11 +85,11 @@ class Dataset():
             temp_doc.from_dict(loaded_document)
             self.documents[doc_id] = temp_doc
 
-    def process_dataset(self, dataset_in, doc_th=3, save=True, scoreList=[],
-                        suppress_warnings=False):
+    def build_dataset(self, dataset_in, doc_th=3, suppress_warnings=False,
+                      save=False, savePath=None, return_pipe=False):
         start_time = time.time()
         # Medium dataset for spacy to allow sentence similarity computation
-        nlp = spacy.load('en_core_web_md')
+        nlp = spacy.load(self.spacy_pipeline_name)
 
         # Adding textrank pipe
         nlp.add_pipe('textrank', last=True)
@@ -163,12 +164,39 @@ class Dataset():
                 i += 1
         pbar_load.close()
 
+        if return_pipe:
+            return nlp
+
+        print('Dataset built in {}[sec]'.format(time.time()-start_time))
+
+        if save:
+            if savePath is None:
+                self.save()
+            else:
+                self.save(savePath)
+
+    def process_dataset(self, dataset_in=None, doc_th=3, save=False,
+                        scoreList=[], suppress_warnings=False, savePath=None):
+
+        if dataset_in is not None:
+            nlp = self.build_dataset(dataset_in, doc_th,
+                                     suppress_warnings,
+                                     return_pipe=True)  # Saves time
+        else:
+            nlp = spacy.load(self.spacy_pipeline_name)
+
+        start_time = time.time()
         self.process_documents(self.documents.keys(),
                                scoreList,
                                spacyPipe=nlp)
 
         print('Total Processing Time: {:0.4f}[sec]'
               .format(time.time()-start_time))
+        if save:
+            if savePath is None:
+                self.save()
+            else:
+                self.save(savePath)
 
     def process_documents(self, docs_id, scoreList, spacyPipe=None,
                           reset=True):
@@ -379,11 +407,11 @@ if __name__ == '__main__':
                       'Negative']}
 
     MG_test = Dataset(name='MG_test_dataset.json')
+    MG_num_docs = 100
+    MG_test.build_dataset(CNN_dataset['train'], MG_num_docs)
     MG_results = pd.DataFrame()
-    MG_num_docs = 15
     for comb, scores in MG_scores.items():
-        MG_test.process_dataset(CNN_dataset['train'], doc_th=MG_num_docs,
-                                scoreList=scores, suppress_warnings=True)
+        MG_test.process_dataset(scoreList=scores)
         MG_rouge = MG_test.rouge_computation()
         MG_results = pd.concat([MG_results, MG_rouge.loc['Mean']], axis=1,
                                ignore_index=True)
