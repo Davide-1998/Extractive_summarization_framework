@@ -274,7 +274,7 @@ class Dataset():
     def get_num_weights(self):
         return len(Scores().__dict__)
 
-    def summarization(self, weights=[], show_scores=False):
+    def summarization(self, weights=[], show_scores=False, show=False):
         summarized_dataset = {}
         for doc in self.documents.values():
             if len(weights) == 0:
@@ -298,6 +298,9 @@ class Dataset():
                         scores.print_total_scores()
                         print('\n')
             summarized_dataset[doc.id] = ordered_doc
+            if show:
+                for key, summary in summarized_dataset.items():
+                    print('***{}***:\n{}'.format(key, summary))
         return summarized_dataset
 
     def rouge_computation(self, n=2, weights=[], show=False, sentences=False):
