@@ -1,6 +1,5 @@
 from datasets import load_dataset
 import pandas as pd
-import numpy as np
 import optuna
 
 from Dataset import Dataset
@@ -19,7 +18,7 @@ if __name__ == '__main__':
 
     # Create a new instance of the Dataset class with a custom name
     CNN_processed = Dataset(name='CNN_processed.json')
-    weights = np.ones(CNN_processed.get_num_weights())
+    weights = [1 for x in range(CNN_processed.get_num_weights())]
 
     # Populate the Dataset class with a custom number of document
     CNN_processed.process_dataset(CNN_dataset['train'], doc_th=100,
