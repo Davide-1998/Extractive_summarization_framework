@@ -34,6 +34,9 @@ class Dataset():
         self.numerical_tokens = set()   # Enforce shared knowledge among docs
         self.spacy_pipeline_name = 'en_core_web_md'  # Minimum medium!
 
+    def set_spacy_pipeline(self, spacyPipeName):
+        self.spacy_pipeline_name = spacyPipeName
+
     def add_document(self, doc, doc_id, summary, suppress_warning=False):
         if doc_id not in self.documents:
             self.documents[doc_id] = Document(doc, doc_id, summary)
