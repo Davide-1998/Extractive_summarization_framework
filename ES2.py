@@ -41,17 +41,47 @@ def MG_optimisation(trial, MG_dataset, comb):
     return results.loc['Mean']['Precision']
 
 
-def CNN_scores_optimisation(trial, CNN_processed):
+def CNN_scores_optimisation(trial, CNN_dataset, value):
     scores = set()
-    available_scores = CNN_processed.get_num_weights(True)
+    available_scores = CNN_dataset.get_num_weights(True)
     i = trial.suggest_int('Number_of_scores', 1, len(available_scores))
     for x in range(i):
         score = trial.suggest_categorical('Score-%d' % x, available_scores)
         scores.add(score)
+    _loc = trial.suggest_categorical('location_filter',
+                                     ['ED', 'NB1', 'NB2', 'NB3', 'FaR'])
+    # support dict:
+    loc_dict = {'ED': [1, 0, 0, 0, 0],
+                'NB1': [0, 1, 0, 0, 0],
+                'NB2': [0, 0, 1, 0, 0],
+                'NB3': [0, 0, 0, 1, 0],
+                'FaR': [0, 0, 0, 0, 1]}
+    locFilter = loc_dict.get(_loc, [1, 0, 0, 0, 0])
+    CNN_dataset.process_dataset(scoreList=scores, locFilter=locFilter)
+    results = CNN_dataset.rouge_computation()
+    return results.loc['Mean'][value]
 
-    CNN_processed.process_dataset(scoreList=scores)
-    results = CNN_processed.rouge_computation()
-    return results.loc['Mean']['F1-score']
+
+def CNN_optimise_all_scores(trial, CNN_dataset, pipeline, value):
+    scores = [x for x in CNN_dataset.get_num_weights(True)]
+    weights = [1 for x in range(len(scores))]
+
+    for score in scores:
+        idx = scores.index(score)
+        weights[idx] = trial.suggest_float(score, -10.0, 10.0, step=0.5)
+    _loc = trial.suggest_categorical('location_filter',
+                                     ['ED', 'NB1', 'NB2', 'NB3', 'FaR'])
+    # support dict:
+    loc_dict = {'ED': [1, 0, 0, 0, 0],
+                'NB1': [0, 1, 0, 0, 0],
+                'NB2': [0, 0, 1, 0, 0],
+                'NB3': [0, 0, 0, 1, 0],
+                'FaR': [0, 0, 0, 0, 1]}
+    locFilter = loc_dict.get(_loc, [1, 0, 0, 0, 0])
+
+    CNN_dataset.process_dataset(scoreList=scores, locFilter=locFilter)
+    results = CNN_dataset.rouge_computation(weights=weights)
+    return results.loc['Mean'][value]
 
 
 if __name__ == '__main__':
@@ -64,14 +94,15 @@ if __name__ == '__main__':
     weights = [1 for x in range(CNN_processed.get_num_weights())]
 
     # Populate the Dataset class with a custom number of document
-    CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100)
-    CNN_processed.process_dataset(scoreList=['pos_keywords',
-                                             'named_entities',
-                                             'co_occur'])
+    pipe = CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100,
+                                       return_pipe=True)
+    # CNN_processed.process_dataset(scoreList=['pos_keywords',
+    #                                          'named_entities',
+    #                                          'co_occur'])
     # Compute the summarization scores and apply the available weights
-    rouge_result = CNN_processed.rouge_computation(show=True,
-                                                   sentences=False,
-                                                   n=2)
+    # rouge_result = CNN_processed.rouge_computation(show=True,
+    #                                                sentences=False,
+    #                                                n=2)
     # Meena & Gopalani environment
     MG_scores = {
             'comb1': ['TF_ISF_IDF', 'co_occur', 'sent_length'],
@@ -115,11 +146,14 @@ if __name__ == '__main__':
     '''
 
     # All scores optimizations
-    '''
-    study = optuna.create_study(direction='maximize')
-    study.optimize(lambda trial: CNN_scores_optimisation(trial, CNN_processed),
+    study = optuna.create_study(direction='maximize',
+                                sampler=optuna.samplers.RandomSampler())
+    study.optimize(lambda trial: CNN_optimise_all_scores(trial,
+                                                         CNN_processed,
+                                                         pipe,
+                                                         'Precision'),
                    n_trials=300)
     print(study.best_params)
-    '''
+
     # Produce the available summarization
     # summarization = CNN_processed.summarization(weights, False)

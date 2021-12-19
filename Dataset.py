@@ -183,13 +183,13 @@ class Dataset():
 
     def process_dataset(self, dataset_in=None, doc_th=3, save=False,
                         locFilter=[0, 0, 0, 1, 0], scoreList=[],
-                        suppress_warnings=False, savePath=None):
+                        suppress_warnings=False, savePath=None, nlp=None):
 
         if dataset_in is not None:
             nlp = self.build_dataset(dataset_in, doc_th,
                                      suppress_warnings,
                                      return_pipe=True)  # Saves time
-        else:
+        elif nlp is None:
             nlp = spacy.load(self.spacy_pipeline_name)
 
         start_time = time.time()
