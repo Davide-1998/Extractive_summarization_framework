@@ -63,7 +63,7 @@ class Sentence():
         return reconstructed_sentence
 
     def toJson(self):
-        data = self.__dict__
+        data = self.__dict__.copy()
         data['scores'] = self.scores.toJson()
         return data
 

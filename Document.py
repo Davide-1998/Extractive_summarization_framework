@@ -151,7 +151,7 @@ class Document():
             return self.sentences.get(sentence_id)
 
     def toJson(self):
-        data = self.__dict__
+        data = self.__dict__.copy()
         sents = {}
         for sent in self.sentences:
             sents.update({sent: self.sentences[sent].toJson()})

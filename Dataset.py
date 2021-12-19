@@ -313,15 +313,25 @@ class Dataset():
             filename = os.path.basename(pathToFile)
             print('File \"{}\" will be overwritten'.format(filename))
 
-        data = self.__dict__
+        data = self.__dict__.copy()
+        for el in self.__dict__.values():
+            print(type(el))
+
         docs = {}
         for doc in self.documents:
             docs.update({doc: self.documents[doc].toJson()})
         data['documents'] = docs
+        data['proper_nouns'] = [x for x in self.proper_nouns]
+        data['named_entities'] = [x for x in self.named_entities]
+        data['numerical_tokens'] = [x for x in self.numerical_tokens]
 
         out_stream = open(pathToFile, 'w')
         json.dump(data, out_stream, indent=4)
         out_stream.close()
+
+        print('\n\n')
+        for el in self.__dict__.values():
+            print(type(el))
 
     def load(self, pathToFile=None):
         if pathToFile is None:
@@ -343,7 +353,7 @@ class Dataset():
             if key in self.__dict__ and key not in filter_keys:
                 self.__dict__[key] = loaded_dataset[key]
 
-        for key in loaded_dataset[1:]:
+        for key in filter_keys[1:]:
             self.__dict__[key] = set(loaded_dataset[key])
 
         for doc_id in loaded_dataset['documents']:

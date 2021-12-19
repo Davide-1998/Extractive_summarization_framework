@@ -289,7 +289,7 @@ class Scores():
         return sum(values * weights)
 
     def toJson(self):
-        return self.__dict__
+        return self.__dict__.copy()
 
     def from_dict(self, loaded_dict):
         for key in loaded_dict:
