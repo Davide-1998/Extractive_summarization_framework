@@ -7,18 +7,6 @@ class Sentence():
         self.tokenized = sent       # Tokenized Sentence
         self.scores = Scores()      # Scores of the sentence
 
-    def toJson(self):
-        data = self.__dict__
-        data['scores'] = self.scores.toJson()
-        return data
-
-    def from_dict(self, loadedDict):
-        # self.set_sentence(loadedDict['tokenized'], loadedDict['id'])
-        for key in loadedDict:
-            if key in self.__dict__ and key != 'scores':
-                self.__dict__[key] = loadedDict[key]
-        self.scores.from_dict(loadedDict['scores'])
-
     def set_sentence(self, list_of_tokens, _id='0'):
         if not isinstance(list_of_tokens, list):
             print('A list of token must be given in order to crete a Sentence')
@@ -26,9 +14,6 @@ class Sentence():
         else:
             self.tokenized = list_of_tokens
             self.id = _id
-
-    def print_Sentence(self):  # Only for debug -> too much verbose
-        print([self.tokenized])
 
     def compute_Scores(self, attributes, score_list=[], loc_th=5,
                        loc=[0, 0, 0, 1, 0], reset=True):
@@ -71,16 +56,30 @@ class Sentence():
     def get_weighted_total_score(self, weights):
         return self.scores.get_weighted_total(weights)
 
-    def info(self, verbose=True):
-        if verbose:
-            print('Tokens in sentence: {}'.format(len(self.tokenized)))
-        return len(self.tokenized)
-
     def text(self):
         reconstructed_sentence = ''
         for token in self.tokenized:
             reconstructed_sentence += '{} '.format(token)
         return reconstructed_sentence
+
+    def toJson(self):
+        data = self.__dict__
+        data['scores'] = self.scores.toJson()
+        return data
+
+    def from_dict(self, loadedDict):
+        for key in loadedDict:
+            if key in self.__dict__ and key != 'scores':
+                self.__dict__[key] = loadedDict[key]
+        self.scores.from_dict(loadedDict['scores'])
+
+    def info(self, verbose=True):
+        if verbose:
+            print('Tokens in sentence: {}'.format(len(self.tokenized)))
+        return len(self.tokenized)
+
+    def print_Sentence(self):  # Only for debug -> too much verbose
+        print([self.tokenized])
 
     def print_scores(self, text=False, onlyTotal=True):
         print('\nSentence id {}'.format(self.id))

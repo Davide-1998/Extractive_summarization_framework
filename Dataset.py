@@ -28,11 +28,16 @@ class Dataset():
         self.documents = {}
         self.proper_nouns = set()       # For all dataset to avoid duplicates
         self.named_entities = set()     # For all dataset to avoid duplicates
-        # self.cue_words = set()          # For all dataset to avoid duplicates
         self.DF = {}                    # Dataset-wise word frequency
         self.name = name                # Name of the dataset file
         self.numerical_tokens = set()   # Enforce shared knowledge among docs
         self.spacy_pipeline_name = 'en_core_web_md'  # Minimum medium!
+
+    def rename(self, name):
+        if name is not None:
+            self.name = name
+        else:
+            print('NoneType cannot be used as a name for the Dataset class')
 
     def set_spacy_pipeline(self, spacyPipeName):
         self.spacy_pipeline_name = spacyPipeName
@@ -46,54 +51,34 @@ class Dataset():
                       ' consistency')
             return
 
-    def rename(self, name):
-        if name is not None:
-            self.name = name
+    def add_proper_noun(self, obj):
+        if isinstance(obj, spacy.tokens.Token):
+            if obj.pos_ == 'PROPN':
+                self.proper_nouns.add(obj.text.casefold())
+            else:
+                return
+        elif isinstance(obj, str):
+            self.proper_nouns.add(obj.casefold())
         else:
-            print('NoneType cannot be used as a name for the Dataset class')
+            print('A spacy.tokens.Token or a string must be given as input')
 
-    def save(self, pathToFile=None):
-        if pathToFile is None:
-            pathToFile = os.getcwd() + os.sep + self.name
-        if '.json' not in pathToFile:
-            pathToFile += '.json'
-        if os.path.isfile(pathToFile):
-            filename = os.path.basename(pathToFile)
-            print('File \"{}\" will be overwritten'.format(filename))
+    def add_numerical_token(self, obj):
+        if isinstance(obj, spacy.tokens.Token):
+            if obj.like_num:
+                self.numerical_tokens.add(obj.text.casefold())
+        elif isinstance(obj, str):
+            self.numerical_tokens.add(obj.casefold())
+        else:
+            print('A spacy.tokens.Token or a string must be given as input')
 
-        data = self.__dict__
-        docs = {}
-        for doc in self.documents:
-            docs.update({doc: self.documents[doc].toJson()})
-        data['documents'] = docs
+    def add_namedEntities(self, spacyObject):
+        for ent in spacyObject.ents:
+            norm_ent = ent.text.casefold()
+            self.named_entities.add(norm_ent)
 
-        out_stream = open(pathToFile, 'w')
-        json.dump(data, out_stream, indent=4)
-        out_stream.close()
-
-    def load(self, pathToFile=None):
-        if pathToFile is None:
-            pathToFile = os.getcwd() + os.sep + self.name
-        if '.json' not in pathToFile:
-            pathToFile += '.json'
-        if not os.path.isfile(pathToFile):
-            filename = os.path.basename(pathToFile)
-            print('File \"{}\" not found'.format(filename))
-            return None
-
-        in_stream = open(pathToFile, 'r')
-        loaded_dataset = json.load(in_stream)
-        in_stream.close()
-
-        for key in loaded_dataset:
-            if key in self.__dict__ and key != 'documents':
-                self.__dict__[key] = loaded_dataset[key]
-
-        for doc_id in loaded_dataset['documents']:
-            loaded_document = loaded_dataset['documents'][doc_id]
-            temp_doc = Document()
-            temp_doc.from_dict(loaded_document)
-            self.documents[doc_id] = temp_doc
+    def add_sentenceRank(self, doc_id, sentenceText, sentenceRank):
+        if sentenceRank > 0:
+            self.documents[doc_id].add_sentRank(sentenceText, sentenceRank)
 
     def build_dataset(self, dataset_in, doc_th=3, suppress_warnings=False,
                       save=False, savePath=None, return_pipe=False):
@@ -218,35 +203,6 @@ class Dataset():
                 pbar_proc.update(1)
         pbar_proc.close()
 
-    def add_proper_noun(self, obj):
-        if isinstance(obj, spacy.tokens.Token):
-            if obj.pos_ == 'PROPN':
-                self.proper_nouns.add(obj.text.casefold())
-            else:
-                return
-        elif isinstance(obj, str):
-            self.proper_nouns.add(obj.casefold())
-        else:
-            print('A spacy.tokens.Token or a string must be given as input')
-
-    def add_numerical_token(self, obj):
-        if isinstance(obj, spacy.tokens.Token):
-            if obj.like_num:
-                self.numerical_tokens.add(obj.text.casefold())
-        elif isinstance(obj, str):
-            self.numerical_tokens.add(obj.casefold())
-        else:
-            print('A spacy.tokens.Token or a string must be given as input')
-
-    def add_namedEntities(self, spacyObject):
-        for ent in spacyObject.ents:
-            norm_ent = ent.text.casefold()
-            self.named_entities.add(norm_ent)
-
-    def add_sentenceRank(self, doc_id, sentenceText, sentenceRank):
-        if sentenceRank > 0:
-            self.documents[doc_id].add_sentRank(sentenceText, sentenceRank)
-
     def spacy_to_listOfLists(self, spacy_object, lemma=False):
         list_of_sentences = []
         for sentence in spacy_object.sents:
@@ -259,23 +215,6 @@ class Dataset():
                 tokenized_sent.append(token)
             list_of_sentences.append(tokenized_sent)
         return list_of_sentences
-
-    def info(self, verbose=True):
-        if verbose:
-            print('Dataset name: {}\n'
-                  'Documents in dataset: {}\n'
-                  .format(self.name, len(self.documents)))
-            for doc_id in self.documents:
-                print('-'*80, '\nDocument ID: {}'.format(doc_id))
-                self.documents[doc_id].info()
-
-    def print_scores(self, text=False, onlyTotal=True):
-        if len(self.documents) > 0:
-            print(self.documents)
-            for doc in self.documents.values():
-                doc.print_scores(_text=text, _onlyTotal=onlyTotal)
-        else:
-            print('No documents from which print scores')
 
     def get_num_weights(self, names=False):
         if not names:
@@ -364,3 +303,68 @@ class Dataset():
         if show:
             print(pd_results)
         return pd_results
+
+    def save(self, pathToFile=None):
+        if pathToFile is None:
+            pathToFile = os.getcwd() + os.sep + self.name
+        if '.json' not in pathToFile:
+            pathToFile += '.json'
+        if os.path.isfile(pathToFile):
+            filename = os.path.basename(pathToFile)
+            print('File \"{}\" will be overwritten'.format(filename))
+
+        data = self.__dict__
+        docs = {}
+        for doc in self.documents:
+            docs.update({doc: self.documents[doc].toJson()})
+        data['documents'] = docs
+
+        out_stream = open(pathToFile, 'w')
+        json.dump(data, out_stream, indent=4)
+        out_stream.close()
+
+    def load(self, pathToFile=None):
+        if pathToFile is None:
+            pathToFile = os.getcwd() + os.sep + self.name
+        if '.json' not in pathToFile:
+            pathToFile += '.json'
+        if not os.path.isfile(pathToFile):
+            filename = os.path.basename(pathToFile)
+            print('File \"{}\" not found'.format(filename))
+            return None
+
+        in_stream = open(pathToFile, 'r')
+        loaded_dataset = json.load(in_stream)
+        in_stream.close()
+        filter_keys = ['documents', 'proper_nouns', 'named_entities',
+                       'numerical_tokens']
+
+        for key in loaded_dataset:
+            if key in self.__dict__ and key not in filter_keys:
+                self.__dict__[key] = loaded_dataset[key]
+
+        for key in loaded_dataset[1:]:
+            self.__dict__[key] = set(loaded_dataset[key])
+
+        for doc_id in loaded_dataset['documents']:
+            loaded_document = loaded_dataset['documents'][doc_id]
+            temp_doc = Document()
+            temp_doc.from_dict(loaded_document)
+            self.documents[doc_id] = temp_doc
+
+    def info(self, verbose=True):
+        if verbose:
+            print('Dataset name: {}\n'
+                  'Documents in dataset: {}\n'
+                  .format(self.name, len(self.documents)))
+            for doc_id in self.documents:
+                print('-'*80, '\nDocument ID: {}'.format(doc_id))
+                self.documents[doc_id].info()
+
+    def print_scores(self, text=False, onlyTotal=True):
+        if len(self.documents) > 0:
+            print(self.documents)
+            for doc in self.documents.values():
+                doc.print_scores(_text=text, _onlyTotal=onlyTotal)
+        else:
+            print('No documents from which print scores')

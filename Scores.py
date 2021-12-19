@@ -8,7 +8,6 @@ class Scores():
     def __init__(self):
         self.TF = 0                 # Term Frequency Score
         self.sent_location = 0      # Sentence Location Score
-        # self.cue = 0                # Cue Words Score
         self.proper_noun = 0        # Proper Nouns Score
         self.co_occur = 0          # Co-Occurrence Score
         self.sent_similarity = 0    # Semantic Similarity Score
@@ -18,11 +17,6 @@ class Scores():
         self.sent_length = 0        # Sentence Length Score
         self.pos_keywords = 0       # Positive Keywords Score
         self.neg_keywords = 0       # Negative Keywords Score
-        # self.busy_path = 0
-        # self.aggregate_simm = 0
-        # self.word_simm_sents = 0
-        # self.word_simm_par = 0
-        # self.IQS = 0
         self.thematic_features = 0  # Thematic Features Score
         self.named_entities = 0     # Named Entities Score
 
@@ -294,13 +288,6 @@ class Scores():
         weights = np.array(weights)
         return sum(values * weights)
 
-    def print_total_scores(self, detail=True, total=True):
-        if detail:
-            for key in self.__dict__:
-                print(key, '->', self.__dict__[key])
-        if total:
-            self.get_total(show=True, getVal=False)
-
     def toJson(self):
         return self.__dict__
 
@@ -308,3 +295,10 @@ class Scores():
         for key in loaded_dict:
             if key in self.__dict__:
                 self.__dict__[key] = loaded_dict[key]
+
+    def print_total_scores(self, detail=True, total=True):
+        if detail:
+            for key in self.__dict__:
+                print(key, '->', self.__dict__[key])
+        if total:
+            self.get_total(show=True, getVal=False)

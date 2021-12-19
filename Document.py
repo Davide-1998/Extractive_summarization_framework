@@ -26,26 +26,8 @@ class Document():
             for key in self.termFrequencies:
                 self.termFrequencies[key] /= self.tot_tokens
 
-    def toJson(self):
-        data = self.__dict__
-        sents = {}
-        for sent in self.sentences:
-            sents.update({sent: self.sentences[sent].toJson()})
-        data['sentences'] = sents
-        return data
-
-    def set_docID(self, id):
-        self.id = str(id)
-
-    def from_dict(self, loadedDict):
-        for key in loadedDict:
-            if key in self.__dict__ and key != 'sentences':
-                self.__dict__[key] = loadedDict[key]
-        for sentence in loadedDict['sentences']:
-            sent_in = loadedDict['sentences'][sentence]
-            temp_sent = Sentence()
-            temp_sent.from_dict(sent_in)
-            self.sentences[sentence] = temp_sent
+    def set_docID(self, _id):
+        self.id = str(_id)
 
     def add_sentence(self, sent, doc_id, load=False):
         if not isinstance(sent, list):
@@ -69,6 +51,9 @@ class Document():
                         self.termFrequencies[token] = 1
                     else:
                         self.termFrequencies[token] += 1
+
+    def add_sentSimm(self, simmDict):
+        self.sentSimilarities.update(simmDict)
 
     def add_summary(self, summary):
         if not isinstance(summary, str):
@@ -126,22 +111,7 @@ class Document():
                                                     reset=_reset,
                                                     loc=locFilter)
 
-    def add_sentSimm(self, simmDict):
-        self.sentSimilarities.update(simmDict)
-
-    def add_nums(self, numList):
-        self.nums.append(numList)
-
     def compute_meanLength(self):
-        '''
-        summary = self.summary
-        summary = summary.split('\n')
-        summary = [x.split(' ') for x in summary]
-        for sent in summary:  # Word-wise
-            self.mean_length += len(sent)
-        self.mean_length /= len(summary)
-        '''
-
         # Token - wise
         for sent in self.sentences:
             self.mean_length += len(self.sentences[sent].tokenized)
@@ -179,6 +149,24 @@ class Document():
             return self.sentences.get(sentence_id).text()
         else:
             return self.sentences.get(sentence_id)
+
+    def toJson(self):
+        data = self.__dict__
+        sents = {}
+        for sent in self.sentences:
+            sents.update({sent: self.sentences[sent].toJson()})
+        data['sentences'] = sents
+        return data
+
+    def from_dict(self, loadedDict):
+        for key in loadedDict:
+            if key in self.__dict__ and key != 'sentences':
+                self.__dict__[key] = loadedDict[key]
+        for sentence in loadedDict['sentences']:
+            sent_in = loadedDict['sentences'][sentence]
+            temp_sent = Sentence()
+            temp_sent.from_dict(sent_in)
+            self.sentences[sentence] = temp_sent
 
     def info(self, verbose=True):
         num_sents = len(self.sentences)
