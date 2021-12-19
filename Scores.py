@@ -10,7 +10,7 @@ class Scores():
         self.sent_location = 0      # Sentence Location Score
         # self.cue = 0                # Cue Words Score
         self.proper_noun = 0        # Proper Nouns Score
-        self.co_occour = 0          # Co-Occurrence Score
+        self.co_occur = 0          # Co-Occurrence Score
         self.sent_similarity = 0    # Semantic Similarity Score
         self.num_val = 0            # Numerical Value Score
         self.TF_ISF_IDF = 0         # TF-IDF Score
@@ -108,7 +108,7 @@ class Scores():
             norm_token = token.casefold()
             co_occurrence = summary.count(norm_token)
             co_occurrence *= tf_dict[norm_token]
-            self.co_occour += co_occurrence/len(tokenized_sentence)
+            self.co_occur += co_occurrence/len(tokenized_sentence)
             # Division avoids bias given by sentence length
 
     def set_similarity_score(self, attributes):

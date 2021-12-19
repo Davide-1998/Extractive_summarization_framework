@@ -182,7 +182,8 @@ class Dataset():
             self.save(savePath)
 
     def process_dataset(self, dataset_in=None, doc_th=3, save=False,
-                        scoreList=[], suppress_warnings=False, savePath=None):
+                        locFilter=[0, 0, 0, 1, 0], scoreList=[],
+                        suppress_warnings=False, savePath=None):
 
         if dataset_in is not None:
             nlp = self.build_dataset(dataset_in, doc_th,
@@ -194,7 +195,8 @@ class Dataset():
         start_time = time.time()
         self.process_documents(self.documents.keys(),
                                scoreList,
-                               spacyPipe=nlp)
+                               spacyPipe=nlp,
+                               loc=locFilter)
 
         print('Total Processing Time: {:0.4f}[sec]'
               .format(time.time()-start_time))
@@ -202,7 +204,7 @@ class Dataset():
             self.save(savePath)
 
     def process_documents(self, docs_id, scoreList, spacyPipe=None,
-                          reset=True):
+                          reset=True, loc=[0, 0, 0, 1, 0]):
         with tqdm(total=len(docs_id)) as pbar_proc:
             for doc in docs_id:
                 pbar_proc.set_description('computing scores: ')
@@ -211,7 +213,8 @@ class Dataset():
                                         self.named_entities, scoreList,
                                         self.numerical_tokens,
                                         spacy_pipeline=spacyPipe,
-                                        _reset=reset)
+                                        _reset=reset,
+                                        locFilter=loc)
                 pbar_proc.update(1)
         pbar_proc.close()
 
@@ -274,8 +277,11 @@ class Dataset():
         else:
             print('No documents from which print scores')
 
-    def get_num_weights(self):
-        return len(Scores().__dict__)
+    def get_num_weights(self, names=False):
+        if not names:
+            return len(Scores().__dict__)
+        else:
+            return[x for x in Scores().__dict__.keys()]
 
     def summarization(self, weights=[], show_scores=False, show=False):
         summarized_dataset = {}

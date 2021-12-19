@@ -93,7 +93,7 @@ class Document():
 
     def compute_scores(self, properNouns=[], DF_dict={}, namedEntities=[],
                        scores=[], numerical_tokens=[], spacy_pipeline=None,
-                       _reset=True):
+                       _reset=True, locFilter=[0, 0, 0, 1, 0]):
         # Computed here to avoid multiple recomputations in sentences
         if spacy_pipeline is None:
             nlp = spacy.load('en_core_web_md')
@@ -123,7 +123,8 @@ class Document():
         for sentence in self.sentences:
             self.sentences[sentence].compute_Scores(attributes,
                                                     score_list=scores,
-                                                    reset=_reset)
+                                                    reset=_reset,
+                                                    loc=locFilter)
 
     def add_sentSimm(self, simmDict):
         self.sentSimilarities.update(simmDict)

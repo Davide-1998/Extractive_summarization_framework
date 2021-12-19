@@ -40,19 +40,19 @@ class Sentence():
         attributes['location_score_filter'] = loc
         attributes['location_threshold'] = loc_th
 
-        functions = {'TF_score': self.scores.set_TF,
-                     'Sentence_location': self.scores.set_sent_location,
-                     'Proper_noun': self.scores.set_proper_noun,
-                     'Co_occurrence': self.scores.set_co_occour,
-                     'Similarity': self.scores.set_similarity_score,
-                     'Numerical': self.scores.set_numScore,
-                     'TF_IDF': self.scores.set_TF_ISF_IDF,
-                     'Sentence_rank': self.scores.set_sentRank,
-                     'Sentence_length': self.scores.set_sentLength,
-                     'Positive': self.scores.set_positiveScore,
-                     'Negative': self.scores.set_negativeScore,
-                     'Thematic_words': self.scores.set_thematicWordsScore,
-                     'Named_entities': self.scores.set_namedEntitiesScore}
+        functions = {'TF': self.scores.set_TF,
+                     'sent_location': self.scores.set_sent_location,
+                     'proper_noun': self.scores.set_proper_noun,
+                     'co_occur': self.scores.set_co_occour,
+                     'sent_similarity': self.scores.set_similarity_score,
+                     'num_val': self.scores.set_numScore,
+                     'TF_ISF_IDF': self.scores.set_TF_ISF_IDF,
+                     'sent_rank': self.scores.set_sentRank,
+                     'sent_length': self.scores.set_sentLength,
+                     'pos_keywords': self.scores.set_positiveScore,
+                     'neg_keywords': self.scores.set_negativeScore,
+                     'thematic_features': self.scores.set_thematicWordsScore,
+                     'named_entities': self.scores.set_namedEntitiesScore}
 
         if len(score_list) > 0:
             for key in score_list:
