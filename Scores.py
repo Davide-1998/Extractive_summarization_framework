@@ -273,12 +273,20 @@ class Scores():
                     count_dataset += 1
 
             inverse_summary_count = len(summary)-count_summary
-            conditional_prob_neg = inverse_summary_count / sents_not_in_summary
+            if sents_not_in_summary != 0:
+                conditional_prob_neg = inverse_summary_count / \
+                                       sents_not_in_summary
+            else:
+                conditional_prob_neg = 0
             event_prob = count_dataset / len(sentences)
 
             # Scores computing
             occurring_frequency = attributes['tokenized'].count(token)
-            probability_neg = (conditional_prob_neg * 1-prior) / event_prob
+            if event_prob != 0:
+                probability_neg = (conditional_prob_neg * 1-prior) / \
+                                   event_prob
+            else:
+                probability_neg = 0
             self.neg_keywords -= occurring_frequency * probability_neg
 
         self.neg_keywords /= len(attributes['tokenized'])

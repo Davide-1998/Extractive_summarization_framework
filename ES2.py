@@ -64,7 +64,7 @@ def CNN_scores_best_representation(trial, CNN_dataset, value, pipeline=None,
                                 all_loc_scores=True,
                                 lemma=lemma,
                                 nlp=pipeline)
-    results = CNN_dataset.rouge_computation()
+    results = CNN_dataset.rouge_computation(show=False)
     return results.loc['Mean'][value]
 
 
@@ -89,7 +89,7 @@ def CNN_scores_weights_task(trial, CNN_dataset, value, pipeline=None,
     '''
     CNN_dataset.process_dataset(scoreList=scores, all_loc_scores=True,
                                 nlp=pipeline, lemma=lemma)
-    results = CNN_dataset.rouge_computation(weights=weights)
+    results = CNN_dataset.rouge_computation(weights=weights, show=False)
     return results.loc['Mean'][value]
 
 
@@ -99,19 +99,21 @@ if __name__ == '__main__':
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
 
     # Create a new instance of the Dataset class with a custom name
-    # CNN_processed = Dataset(name='CNN_processed.json')
+    CNN_processed = Dataset(name='CNN_processed.json')
     # weights = [1 for x in range(CNN_processed.get_num_weights())]
-    # weights = [8.5, 2.5, 2.5, 7.0, 4.5, -1.0, -1.0,
-    #           8.0, 5.0, 8.5, 9.0, -5.5, 6.5]
+    # weights = [8.5, 3.0, -7.0, 9.0, 1.0, 4.5, 0.0,
+    #            -4.0, -4.0, 9.0, 8.5, 8.0, -7.0]
 
     # Populate the Dataset class with a custom number of document
     # Lemma test
-    # _lemma = False
-    # _doc_num = 6
-    # CNN_processed.process_dataset(CNN_dataset['train'], doc_th=_doc_num,
-    #                               lemma=_lemma)
-    # CNN_processed.rouge_computation()
-
+    # '''
+    _lemma = True
+    _doc_num = 100
+    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=_doc_num,
+                                  lemma=_lemma, all_loc_scores=True,
+                                  scoreList=['pos_keywords', 'co_occur'])
+    CNN_processed.rouge_computation()
+    # '''
     # CNN_new = Dataset('New')
     # CNN_processed.process_dataset(CNN_dataset['train'], doc_th=_doc_num,
     #                               lemma=True, suppress_warnings=True)
@@ -186,13 +188,12 @@ if __name__ == '__main__':
     '''
     '''
     # Scores weights optimization task
-    _lemma = False
+    _lemma = True
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset('Weights_finding_optimisation_task.json')
     pipe = CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100,
                                        return_pipe=True, lemma=_lemma)
-    study = optuna.create_study(direction='maximize',
-                                sampler=optuna.samplers.RandomSampler())
+    study = optuna.create_study(direction='maximize')
     study.optimize(lambda trial: CNN_scores_weights_task(trial,
                                                          CNN_processed,
                                                          'Precision',
@@ -201,15 +202,14 @@ if __name__ == '__main__':
                    n_trials=500)
     print(study.best_params)
     '''
-    # '''
+    '''
     # Best representation optimization task
     _lemma = False
     CNN_dataset = load_dataset('cnn_dailymail', '3.0.0')
     CNN_processed = Dataset('Weights_finding_optimisation_task.json')
     pipe = CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100,
                                        return_pipe=True, lemma=_lemma)
-    study = optuna.create_study(direction='maximize',
-                                sampler=optuna.samplers.RandomSampler())
+    study = optuna.create_study(direction='maximize')
     study.optimize(lambda trial: CNN_scores_best_representation(trial,
                                                                 CNN_processed,
                                                                 'Precision',
@@ -217,7 +217,6 @@ if __name__ == '__main__':
                                                                 lemma=_lemma),
                    n_trials=500)
     print(study.best_params)
-    # '''
-
+    '''
     # Produce the available summarization
     # summarization = CNN_processed.summarization(weights, False)
