@@ -49,7 +49,6 @@ class Dataset():
             if not suppress_warning:
                 print('Key already exist, document not overwritten to preserve'
                       ' consistency')
-            return
 
     def add_proper_noun(self, obj):
         if isinstance(obj, spacy.tokens.Token):
@@ -80,8 +79,39 @@ class Dataset():
         if sentenceRank > 0:
             self.documents[doc_id].add_sentRank(sentenceText, sentenceRank)
 
+    def compute_sent_simm(self, doc_id, spacy_doc, lemma=False):
+        if not isinstance(spacy_doc, spacy.tokens.doc.Doc):
+            print('A spacy Doc object must be given')
+            return
+        sent_sim = {}
+        idx = 0
+        for sentence in spacy_doc.sents:
+            if lemma:
+                sent_str = sentence.lemma_.casefold()
+            else:
+                sent_str = sentence.text.casefold()
+            sent_id = str(doc_id) + '_{}'.format(idx)
+
+            sent2_idx = 0
+            for sent2 in spacy_doc.sents:
+                if lemma:
+                    sent2_text = sent2.lemma_.casefold()
+                else:
+                    sent2_text = sent2.text.casefold()
+                if sent2_text != sent_str:
+                    index = '{}:{}'.format(sent_id, sent2_idx)
+                    # char-based length
+                    mlen = max(len(sentence), len(sent2))
+                    sentence_similarity = sentence.similarity(sent2)
+                    if sentence_similarity is not None:
+                        sent_sim[index] = sentence_similarity/mlen
+                sent2_idx += 1
+            idx += 1
+        return sent_sim
+
     def build_dataset(self, dataset_in, doc_th=3, suppress_warnings=False,
-                      save=False, savePath=None, return_pipe=False):
+                      save=False, savePath=None, return_pipe=False,
+                      lemma=False):
         start_time = time.time()
         # Medium dataset for spacy to allow sentence similarity computation
         nlp = spacy.load(self.spacy_pipeline_name)
@@ -100,22 +130,23 @@ class Dataset():
                 tokenized_article = nlp(key['article'])  # Spacy object
 
                 segmented_document = []
+                self.DF[doc_id] = {}
 
                 for sentence in tokenized_article.sents:
                     tokenized_sent = []
                     for token in sentence:
-                        norm_token = token.text.casefold()  # Try .lemma_
-                        tokenized_sent.append(token.text)
+                        norm_token = token.text.casefold()
+                        if lemma:
+                            norm_token = token.lemma_.casefold()
+                        tokenized_sent.append(norm_token)
 
                         # Record proper nouns
-                        self.add_proper_noun(token)
+                        self.add_proper_noun(norm_token)
 
                         # Record numerical tokens
-                        self.add_numerical_token(token)
+                        self.add_numerical_token(norm_token)
 
                         # Frequency among documents
-                        if doc_id not in self.DF:
-                            self.DF[doc_id] = {}
                         if norm_token not in self.DF[doc_id]:
                             self.DF[doc_id][norm_token] = 1
 
@@ -133,23 +164,8 @@ class Dataset():
                 self.add_namedEntities(tokenized_article)
 
                 # Similarity among sentences in same document
-                sent_sim = {}
-                idx = 0
-                for sentence in tokenized_article.sents:
-                    sent_str = sentence.text.casefold()
-                    sent_id = str(doc_id) + '_{}'.format(idx)
-
-                    sent2_idx = 0
-                    for sent2 in tokenized_article.sents:
-                        if sent2.text.casefold() != sent_str:
-                            index = '{}:{}'.format(sent_id, sent2_idx)
-                            # char-based length
-                            mlen = max(len(sentence), len(sent2))
-                            sentence_similarity = sentence.similarity(sent2)
-                            if sentence_similarity is not None:
-                                sent_sim[index] = sentence_similarity/mlen
-                        sent2_idx += 1
-                    idx += 1
+                sent_sim = self.compute_sent_simm(doc_id, tokenized_article,
+                                                  lemma)
                 self.documents[doc_id].add_sentSimm(sent_sim)
 
                 pbar_load.update(1)
@@ -170,22 +186,26 @@ class Dataset():
     def process_dataset(self, dataset_in=None, doc_th=3, save=False, loc_th=5,
                         _all_loc_scores=False, locFilter=[0, 0, 0, 1, 0],
                         scoreList=[], suppress_warnings=False, savePath=None,
-                        nlp=None):
+                        nlp=None, lemma=False, reset=True):
 
         if dataset_in is not None:
+            self.__init__()  # Avoids errors in successive computations
             nlp = self.build_dataset(dataset_in, doc_th,
                                      suppress_warnings,
-                                     return_pipe=True)  # Saves time
+                                     save, savePath,
+                                     return_pipe=True,
+                                     lemma=lemma)
         elif nlp is None:
             nlp = spacy.load(self.spacy_pipeline_name)
 
         start_time = time.time()
-        self.process_documents(self.documents.keys(),
-                               scoreList,
-                               spacyPipe=nlp,
+        self.process_documents(docs_id=self.documents.keys(),
+                               scoreList=scoreList,
+                               spacyPipe=nlp, reset=reset,
                                loc_th=loc_th,
                                loc=locFilter,
-                               all_loc_scores=_all_loc_scores)
+                               all_loc_scores=_all_loc_scores,
+                               lemma=lemma)
 
         print('Dataset processed in: {:0.4f}[sec]'
               .format(time.time()-start_time))
@@ -194,7 +214,7 @@ class Dataset():
 
     def process_documents(self, docs_id, scoreList, spacyPipe=None,
                           reset=True, loc_th=5, loc=[0, 0, 0, 1, 0],
-                          all_loc_scores=False):
+                          all_loc_scores=False, lemma=False):
         with tqdm(total=len(docs_id)) as pbar_proc:
             for doc in docs_id:
                 pbar_proc.set_description('computing scores: ')
@@ -205,8 +225,9 @@ class Dataset():
                                         spacy_pipeline=spacyPipe,
                                         _reset=reset,
                                         loc_threshold=loc_th,
+                                        _all_loc=all_loc_scores,
                                         locFilter=loc,
-                                        _all_loc=all_loc_scores)
+                                        lemma=lemma)
                 pbar_proc.update(1)
         pbar_proc.close()
 

@@ -79,7 +79,7 @@ class Document():
     def compute_scores(self, properNouns=[], DF_dict={}, namedEntities=[],
                        scores=[], numerical_tokens=[], spacy_pipeline=None,
                        _reset=True, loc_threshold=5, _all_loc=False,
-                       locFilter=[0, 0, 0, 1, 0]):
+                       locFilter=[0, 0, 0, 1, 0], lemma=False):
         # Computed here to avoid multiple recomputations in sentences
         if spacy_pipeline is None:
             nlp = spacy.load('en_core_web_md')
@@ -87,13 +87,19 @@ class Document():
             nlp = spacy_pipeline
         summary = nlp(self.summary)
         tokenized_summary = []
+        lemma_summary = ''
         for sentence in summary.sents:
             tokenized_sent = []
             for token in sentence:
-                if not token.is_punct:
-                    norm_token = token.text.casefold()
-                    tokenized_sent.append(norm_token)
+                norm_token = token.text.casefold()
+                if lemma:
+                    norm_token = token.lemma_.casefold()
+                    lemma_summary += norm_token + ' '
+                tokenized_sent.append(norm_token)
             tokenized_summary.append(tokenized_sent)
+
+        if lemma:
+            self.summary = lemma_summary.strip()
 
         attributes = {'termFrequencies': self.termFrequencies,
                       'sentences': self.sentences,

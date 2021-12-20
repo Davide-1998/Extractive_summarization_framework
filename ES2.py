@@ -92,20 +92,32 @@ if __name__ == '__main__':
 
     # Create a new instance of the Dataset class with a custom name
     CNN_processed = Dataset(name='CNN_processed.json')
-    weights = [1 for x in range(CNN_processed.get_num_weights())]
-    weights = [8.5, 2.5, 2.5, 7.0, 4.5, -1.0, -1.0,
-               8.0, 5.0, 8.5, 9.0, -5.5, 6.5]
+    # weights = [1 for x in range(CNN_processed.get_num_weights())]
+    # weights = [8.5, 2.5, 2.5, 7.0, 4.5, -1.0, -1.0,
+    #           8.0, 5.0, 8.5, 9.0, -5.5, 6.5]
 
     # Populate the Dataset class with a custom number of document
-    pipe = CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100)
+    # Lemma test
+    _lemma = False
+    _doc_num = 100
+    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=_doc_num,
+                                  lemma=_lemma)
+    CNN_processed.rouge_computation()
 
+    # CNN_new = Dataset('New')
+    CNN_processed.process_dataset(CNN_dataset['train'], doc_th=_doc_num,
+                                  lemma=True, suppress_warnings=True)
+    CNN_processed.rouge_computation()
+    '''
     # Nobata Location Treshold analysis
+    CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100)
     loc_task = pd.DataFrame(columns=['Rouge-2', 'Precision', 'F1-score'])
     for x in range(1, 21):
         CNN_processed.process_dataset(loc_th=x, _all_loc_scores=False,
                                       locFilter=[0, 1, 0, 0, 0])
         loc_task.loc[x] = CNN_processed.rouge_computation().loc['Mean']
     print(loc_task)
+    '''
     # CNN_processed.process_dataset(scoreList=['pos_keywords',
     #                                          'named_entities',
     #                                          'co_occur'])
@@ -113,6 +125,7 @@ if __name__ == '__main__':
     # rouge_result = CNN_processed.rouge_computation(show=True,
     #                                                sentences=False,
     #                                                n=2)
+    '''
     # Meena & Gopalani environment
     MG_scores = {
             'comb1': ['TF_ISF_IDF', 'co_occur', 'sent_length'],
@@ -130,7 +143,7 @@ if __name__ == '__main__':
                       'sent_location', 'named_entities', 'pos_keywords',
                       'neg_keywords']}
 
-    '''  # Meena & Golapani initial test
+    # Meena & Golapani initial test
     MG_test = Dataset(name='MG_test_dataset.json')
     MG_num_docs = 100
     MG_test.build_dataset(CNN_dataset['train'], MG_num_docs)
