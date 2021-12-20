@@ -184,7 +184,7 @@ class Dataset():
             self.save(savePath)
 
     def process_dataset(self, dataset_in=None, doc_th=3, save=False, loc_th=5,
-                        _all_loc_scores=False, locFilter=[0, 0, 0, 1, 0],
+                        all_loc_scores=False, locFilter=[0, 0, 0, 1, 0],
                         scoreList=[], suppress_warnings=False, savePath=None,
                         nlp=None, lemma=False, reset=True):
 
@@ -204,7 +204,7 @@ class Dataset():
                                spacyPipe=nlp, reset=reset,
                                loc_th=loc_th,
                                loc=locFilter,
-                               all_loc_scores=_all_loc_scores,
+                               all_loc_scores=all_loc_scores,
                                lemma=lemma)
 
         print('Dataset processed in: {:0.4f}[sec]'

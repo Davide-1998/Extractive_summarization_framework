@@ -9,7 +9,7 @@ class Scores():
         self.TF = 0                 # Term Frequency Score
         self.sent_location = 0      # Sentence Location Score
         self.proper_noun = 0        # Proper Nouns Score
-        self.co_occur = 0          # Co-Occurrence Score
+        self.co_occur = 0           # Co-Occurrence Score
         self.sent_similarity = 0    # Semantic Similarity Score
         self.num_val = 0            # Numerical Value Score
         self.TF_ISF_IDF = 0         # TF-IDF Score
@@ -33,7 +33,7 @@ class Scores():
             self.TF = 0
         for token in token_list:
             self.TF += term_freq_dict.get(token.casefold(), 0)
-        # self.TF /= len(token_list)  # Add in experiments
+        self.TF /= len(token_list)  # Added for normalization -> scores go up
 
     def set_sent_location(self, attributes):
         sent_id = attributes['sent_id']
