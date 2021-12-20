@@ -78,7 +78,8 @@ class Document():
 
     def compute_scores(self, properNouns=[], DF_dict={}, namedEntities=[],
                        scores=[], numerical_tokens=[], spacy_pipeline=None,
-                       _reset=True, locFilter=[0, 0, 0, 1, 0]):
+                       _reset=True, loc_threshold=5, _all_loc=False,
+                       locFilter=[0, 0, 0, 1, 0]):
         # Computed here to avoid multiple recomputations in sentences
         if spacy_pipeline is None:
             nlp = spacy.load('en_core_web_md')
@@ -109,7 +110,9 @@ class Document():
             self.sentences[sentence].compute_Scores(attributes,
                                                     score_list=scores,
                                                     reset=_reset,
-                                                    loc=locFilter)
+                                                    loc_th=loc_threshold,
+                                                    loc=locFilter,
+                                                    all_loc_scores=_all_loc)
 
     def compute_meanLength(self):
         # Token - wise

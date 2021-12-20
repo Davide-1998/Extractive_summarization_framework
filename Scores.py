@@ -40,42 +40,72 @@ class Scores():
         sent_len = len(attributes['sentences'])
         [ED, NB1, NB2, NB3, FaR] = attributes['location_score_filter']
         th = attributes['location_threshold']
+        ALL = attributes['all_location_scores']
 
-        if [ED, NB1, NB2, NB3, FaR].count(1) != 1:
-            print('Multiple or none options setted'
-                  'score of 0 attributed')
-            self.sent_location = 0
+        if not ALL:
+            if [ED, NB1, NB2, NB3, FaR].count(1) != 1:
+                print('Multiple or none options setted'
+                      'score of 0 attributed')
+                self.sent_location = 0
+            else:
+                sent_id = int(sent_id.split('_')[1])
+                # ED -> Edmundson -> mostly works for news data
+                if ED:
+                    if sent_id < 2:
+                        self.sent_location = 1
+                    else:
+                        self.sent_location = 0
+
+                # NB1 -> Nobata method 1
+                if NB1:
+                    if sent_id < th:  # First sentence
+                        self.sent_location = 1
+
+                # NB2 -> Nobata method 2
+                if NB2:
+                    self.sent_location = 1/(sent_id + 1)
+
+                # NB3 -> Nobata method 3
+                if NB3:
+                    sent_id += 1  # Avoids division by 0
+                    lower_b = 1/sent_id
+                    higher_b = 1/(sent_len-sent_id+1)
+                    self.sent_location = max(lower_b, higher_b)
+
+                # FaR -> Fattah and Ren
+                if FaR:
+                    if sent_id < 5:
+                        self.sent_location = 1 - (sent_id*1/5)  # Maybe +1 ?
+                    else:
+                        self.sent_location = 0
         else:
             sent_id = int(sent_id.split('_')[1])
-            # ED -> Edmundson -> mostly works for news data
-            if ED:
-                if sent_id < 2:
-                    self.sent_location = 1
-                else:
-                    self.sent_location = 0
+            # ED computation
+            ED_loc = 0
+            if sent_id < 2:
+                ED_loc = 1
 
-            # NB1 -> Nobata method 1
-            if NB1:
-                if sent_id < th:  # First sentence
-                    self.sent_location = 1
+            # NB1 computation
+            NB1_loc = 0
+            if sent_id < th:
+                NB1_loc = 1
 
-            # NB2 -> Nobata method 2
-            if NB2:
-                self.sent_location = 1/(sent_id + 1)
+            # NB2 computation
+            NB2_loc = 1/(sent_id + 1)
 
-            # NB3 -> Nobata method 3
-            if NB3:
-                sent_id += 1  # Avoids division by 0
-                lower_b = 1/sent_id
-                higher_b = 1/(sent_len-sent_id+1)
-                self.sent_location = max(lower_b, higher_b)
+            # NB3 cmputation
+            NB3_loc = 0
+            lower_b = 1 / (sent_id + 1)
+            upper_b = 1 / (sent_len - sent_id + 1)
+            NB3 = max(lower_b, upper_b)
 
-            # FaR -> Fattah and Ren
-            if FaR:
-                if sent_id < 5:
-                    self.sent_location = 1 - (sent_id*1/5)
-                else:
-                    self.sent_location = 0
+            # Far computation
+            FaR_loc = 0
+            if sent_id < 5:
+                FaR_loc = 1 - (sent_id*(1/5))
+
+            self.sent_location = max(ED_loc, NB1_loc, NB2_loc,
+                                     NB3_loc, FaR_loc)
 
     def set_proper_noun(self, attributes):
 

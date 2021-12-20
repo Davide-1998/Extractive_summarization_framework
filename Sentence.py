@@ -16,7 +16,7 @@ class Sentence():
             self.id = _id
 
     def compute_Scores(self, attributes, score_list=[], loc_th=5,
-                       loc=[0, 0, 0, 1, 0], reset=True):
+                       all_loc_scores=False, loc=[0, 0, 0, 1, 0], reset=True):
         if reset:
             self.scores.zero()  # Reset to avoid update of loaded values
 
@@ -24,6 +24,7 @@ class Sentence():
         attributes['tokenized'] = self.tokenized
         attributes['location_score_filter'] = loc
         attributes['location_threshold'] = loc_th
+        attributes['all_location_scores'] = all_loc_scores
 
         functions = {'TF': self.scores.set_TF,
                      'sent_location': self.scores.set_sent_location,

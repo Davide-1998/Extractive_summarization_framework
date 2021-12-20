@@ -159,6 +159,7 @@ class Dataset():
         pbar_load.close()
 
         if return_pipe:
+            nlp.remove_pipe('textrank')
             return nlp
 
         print('Dataset built in {}[sec]'.format(time.time()-start_time))
@@ -166,9 +167,10 @@ class Dataset():
         if save:
             self.save(savePath)
 
-    def process_dataset(self, dataset_in=None, doc_th=3, save=False,
-                        locFilter=[0, 0, 0, 1, 0], scoreList=[],
-                        suppress_warnings=False, savePath=None, nlp=None):
+    def process_dataset(self, dataset_in=None, doc_th=3, save=False, loc_th=5,
+                        _all_loc_scores=False, locFilter=[0, 0, 0, 1, 0],
+                        scoreList=[], suppress_warnings=False, savePath=None,
+                        nlp=None):
 
         if dataset_in is not None:
             nlp = self.build_dataset(dataset_in, doc_th,
@@ -181,15 +183,18 @@ class Dataset():
         self.process_documents(self.documents.keys(),
                                scoreList,
                                spacyPipe=nlp,
-                               loc=locFilter)
+                               loc_th=loc_th,
+                               loc=locFilter,
+                               all_loc_scores=_all_loc_scores)
 
-        print('Total Processing Time: {:0.4f}[sec]'
+        print('Dataset processed in: {:0.4f}[sec]'
               .format(time.time()-start_time))
         if save:
             self.save(savePath)
 
     def process_documents(self, docs_id, scoreList, spacyPipe=None,
-                          reset=True, loc=[0, 0, 0, 1, 0]):
+                          reset=True, loc_th=5, loc=[0, 0, 0, 1, 0],
+                          all_loc_scores=False):
         with tqdm(total=len(docs_id)) as pbar_proc:
             for doc in docs_id:
                 pbar_proc.set_description('computing scores: ')
@@ -199,7 +204,9 @@ class Dataset():
                                         self.numerical_tokens,
                                         spacy_pipeline=spacyPipe,
                                         _reset=reset,
-                                        locFilter=loc)
+                                        loc_threshold=loc_th,
+                                        locFilter=loc,
+                                        _all_loc=all_loc_scores)
                 pbar_proc.update(1)
         pbar_proc.close()
 
@@ -251,7 +258,7 @@ class Dataset():
                     print('***{}***:\n{}'.format(key, summary))
         return summarized_dataset
 
-    def rouge_computation(self, n=2, weights=[], show=False, sentences=False):
+    def rouge_computation(self, n=2, weights=[], show=True, sentences=False):
         if len(weights) == 0:
             summarization = self.summarization()
         else:
@@ -314,9 +321,6 @@ class Dataset():
             print('File \"{}\" will be overwritten'.format(filename))
 
         data = self.__dict__.copy()
-        for el in self.__dict__.values():
-            print(type(el))
-
         docs = {}
         for doc in self.documents:
             docs.update({doc: self.documents[doc].toJson()})
@@ -328,10 +332,6 @@ class Dataset():
         out_stream = open(pathToFile, 'w')
         json.dump(data, out_stream, indent=4)
         out_stream.close()
-
-        print('\n\n')
-        for el in self.__dict__.values():
-            print(type(el))
 
     def load(self, pathToFile=None):
         if pathToFile is None:

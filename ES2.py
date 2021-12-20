@@ -62,7 +62,7 @@ def CNN_scores_optimisation(trial, CNN_dataset, value):
     return results.loc['Mean'][value]
 
 
-def CNN_optimise_all_scores(trial, CNN_dataset, pipeline, value):
+def CNN_optimise_all_scores(trial, CNN_dataset, value, pipeline=None):
     scores = [x for x in CNN_dataset.get_num_weights(True)]
     weights = [1 for x in range(len(scores))]
 
@@ -79,7 +79,8 @@ def CNN_optimise_all_scores(trial, CNN_dataset, pipeline, value):
                 'FaR': [0, 0, 0, 0, 1]}
     locFilter = loc_dict.get(_loc, [1, 0, 0, 0, 0])
 
-    CNN_dataset.process_dataset(scoreList=scores, locFilter=locFilter)
+    CNN_dataset.process_dataset(scoreList=scores, locFilter=locFilter,
+                                nlp=pipeline)
     results = CNN_dataset.rouge_computation(weights=weights)
     return results.loc['Mean'][value]
 
@@ -92,10 +93,19 @@ if __name__ == '__main__':
     # Create a new instance of the Dataset class with a custom name
     CNN_processed = Dataset(name='CNN_processed.json')
     weights = [1 for x in range(CNN_processed.get_num_weights())]
+    weights = [8.5, 2.5, 2.5, 7.0, 4.5, -1.0, -1.0,
+               8.0, 5.0, 8.5, 9.0, -5.5, 6.5]
 
     # Populate the Dataset class with a custom number of document
-    pipe = CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100,
-                                       return_pipe=True)
+    pipe = CNN_processed.build_dataset(CNN_dataset['train'], doc_th=100)
+
+    # Nobata Location Treshold analysis
+    loc_task = pd.DataFrame(columns=['Rouge-2', 'Precision', 'F1-score'])
+    for x in range(1, 21):
+        CNN_processed.process_dataset(loc_th=x, _all_loc_scores=False,
+                                      locFilter=[0, 1, 0, 0, 0])
+        loc_task.loc[x] = CNN_processed.rouge_computation().loc['Mean']
+    print(loc_task)
     # CNN_processed.process_dataset(scoreList=['pos_keywords',
     #                                          'named_entities',
     #                                          'co_occur'])
@@ -144,16 +154,16 @@ if __name__ == '__main__':
                    n_trials=300)
     print(study.best_params)
     '''
-
+    '''
     # All scores optimizations
     study = optuna.create_study(direction='maximize',
                                 sampler=optuna.samplers.RandomSampler())
     study.optimize(lambda trial: CNN_optimise_all_scores(trial,
                                                          CNN_processed,
-                                                         pipe,
-                                                         'Precision'),
-                   n_trials=300)
+                                                         'Precision',
+                                                         pipe),
+                   n_trials=500)
     print(study.best_params)
-
+    '''
     # Produce the available summarization
     # summarization = CNN_processed.summarization(weights, False)
