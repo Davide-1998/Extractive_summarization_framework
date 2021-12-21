@@ -75,7 +75,7 @@ class Scores():
                 # FaR -> Fattah and Ren
                 if FaR:
                     if sent_id < 5:
-                        self.sent_location = 1 - (sent_id*1/5)  # Maybe +1 ?
+                        self.sent_location = 1 - (sent_id*1/5)
                     else:
                         self.sent_location = 0
         else:
@@ -169,7 +169,7 @@ class Scores():
             doc_has_token = 0
             for doc in DF:
                 doc_has_token += DF[doc].get(token, 0)
-            IDF = log(num_doc/(doc_has_token))
+            IDF = log((num_doc/doc_has_token))
             TF_ISF_IDF += (TF[token]/1+TF[token])*IDF  # Token-wise
             self.TF_ISF_IDF += TF_ISF_IDF
 

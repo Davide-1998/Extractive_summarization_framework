@@ -70,9 +70,12 @@ class Dataset():
         else:
             print('A spacy.tokens.Token or a string must be given as input')
 
-    def add_namedEntities(self, spacyObject):
+    def add_namedEntities(self, spacyObject, lemma=False):
         for ent in spacyObject.ents:
-            norm_ent = ent.text.casefold()
+            if not lemma:
+                norm_ent = ent.text.casefold()
+            else:
+                norm_ent = ent.lemma_.casefold()
             self.named_entities.add(norm_ent)
 
     def add_sentenceRank(self, doc_id, sentenceText, sentenceRank):
@@ -161,7 +164,7 @@ class Dataset():
                     self.add_sentenceRank(doc_id, norm_text, phrase.rank)
 
                 # Record named entities
-                self.add_namedEntities(tokenized_article)
+                self.add_namedEntities(tokenized_article, lemma)
 
                 # Similarity among sentences in same document
                 sent_sim = self.compute_sent_simm(doc_id, tokenized_article,
