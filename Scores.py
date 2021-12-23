@@ -5,6 +5,42 @@ import numpy as np
 # Available scoring methods = 14
 
 class Scores():
+    '''
+    This class contains the results of the scoring strategies
+    available and the methods to compute them.
+    By default, each score is set to 0.
+    The attributes are the available scoring strategies.
+
+    Attributes
+    ---------
+    TF: float
+        Term Frequency score
+    sent_location: float
+        Sentence Location score
+    proper_noun: float
+        Proper Nouns score
+    co_occur: float
+        Co Occurrence score
+    sent_similarity: float
+        Sentence Similarity score
+    num_val: float
+        Numerical Tokens score
+    "TF_ISF_IDF: float
+        Term Frequency/inverse document frequency score
+    sent_rank: float
+        Sentence Ranking score
+    sent_length: float
+        Sentence Length score
+    pos_keywords: float
+        Positive Keywords score
+    neg_keywords: float
+        Negative Keywords score
+    thematic_features: float
+        Thematic Words score
+    named_entities: float
+        Named Entities score
+    '''
+
     def __init__(self):
         self.TF = 0                 # Term Frequency Score
         self.sent_location = 0      # Sentence Location Score
@@ -21,11 +57,22 @@ class Scores():
         self.named_entities = 0     # Named Entities Score
 
     def zero(self):  # Sets all values to 0
+        '''
+        This method is used to set all the available scores to 0
+        '''
+
         for el in self.__dict__:
             if self.__dict__ != 0:
                 self.__dict__[el] = 0
 
     def set_TF(self, attributes):
+        '''
+        This method is used to compute the term frequency score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         token_list = attributes['tokenized']
         term_freq_dict = attributes['termFrequencies']
         if self.TF != 0:
@@ -36,6 +83,13 @@ class Scores():
         self.TF /= len(token_list)  # Added for normalization -> scores go up
 
     def set_sent_location(self, attributes):
+        '''
+        This method is used to compute the sentence location score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sent_id = attributes['sent_id']
         sent_len = len(attributes['sentences'])
         [ED, NB1, NB2, NB3, FaR] = attributes['location_score_filter']
@@ -108,6 +162,12 @@ class Scores():
                                      NB3_loc, FaR_loc)
 
     def set_proper_noun(self, attributes):
+        '''
+        This method is used to compute the proper noun score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
 
         sentence = attributes['tokenized']
         prop_noun_list = attributes['properNouns']
@@ -122,6 +182,13 @@ class Scores():
                 self.proper_noun += tf_dict[token.casefold()]
 
     def set_co_occour(self, attributes):  # Must be re-thought
+        '''
+        This method is used to compute the Co Occurrence score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         tokenized_sentence = attributes['tokenized']
         summary = attributes['summary']
         tf_dict = attributes['termFrequencies']
@@ -136,7 +203,14 @@ class Scores():
             # Division avoids bias given by sentence length
 
     def set_similarity_score(self, attributes):
-        # Fattah & Ren 2009
+        '''
+        This method is used to compute the similarity score as in
+        Fattah & Ren 2009 paper.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sent_id = attributes['sent_id']
         score = attributes['similarityScores']
 
@@ -146,10 +220,17 @@ class Scores():
                 self.sent_similarity += score[key]
 
     def set_numScore(self, attributes):
+        '''
+        This method is used to compute the numerical tokens score as
+        in Fattah & Ren 2009 paper.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sent = attributes['tokenized']
         numList = attributes['numbers']
 
-        # Fattah & Ren 2009
         count = 0
         for token in sent:
             if token.casefold() in numList:
@@ -157,11 +238,18 @@ class Scores():
         self.num_val = count/len(sent)  # Token-wise length
 
     def set_TF_ISF_IDF(self, attributes):
+        '''
+        This method is used to compute the term frequency / inverse
+        document frequency score as in Nobata et al. 2001 paper.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sentence = attributes['tokenized']
         TF = attributes['termFrequencies']
         DF = attributes['documentsFrequencies']
 
-        # Nobata et al 2001
         num_doc = len(DF)
         TF_ISF_IDF = 0
         for token in sentence:
@@ -174,6 +262,13 @@ class Scores():
             self.TF_ISF_IDF += TF_ISF_IDF
 
     def set_sentRank(self, attributes):
+        '''
+        This method is used to compute the sentence rank score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sentence = attributes['tokenized']
         rankings = attributes['sentenceRanks']
 
@@ -186,6 +281,13 @@ class Scores():
                 self.sent_rank += rankings[chunk]
 
     def set_sentLength(self, attributes):
+        '''
+        This method is used to compute the sentence length score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sentence = attributes['tokenized']
         mean_length = attributes['meanSentenceLength']
 
@@ -197,6 +299,13 @@ class Scores():
                                ((2/mean_length)*sent_len)
 
     def set_positiveScore(self, attributes):
+        '''
+        This method is used to compute the positive keywords score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         # Use tokenized version for summary and document's sentences
         summary = attributes['tokenized_summary']  # Already casefold
         sentences = [x.tokenized for x in attributes['sentences'].values()]
@@ -240,6 +349,14 @@ class Scores():
         self.pos_keywords /= len(attributes['tokenized'])
 
     def set_negativeScore(self, attributes):
+        '''
+        This method is used to compute the sentence negative keywords
+        score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         # Use tokenized version for summary and document's sentences
         summary = attributes['tokenized_summary']  # Already casefold
         sentences = [x.tokenized for x in attributes['sentences'].values()]
@@ -292,6 +409,13 @@ class Scores():
         self.neg_keywords /= len(attributes['tokenized'])
 
     def set_thematicWordsScore(self, attributes):
+        '''
+        This method is used to compute the thematic words score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sentence = attributes['tokenized']
         doc_tf = attributes['termFrequencies']
 
@@ -302,6 +426,13 @@ class Scores():
                 self.thematic_features += doc_tf[norm_token]
 
     def set_namedEntitiesScore(self, attributes):
+        '''
+        This method is used to compute the named entities score.
+
+        attributes: dict
+            Dictionary of document and sentence features.
+        '''
+
         sentence = attributes['tokenized']
         termFreqDict = attributes['termFrequencies']
         neList = attributes['namedEntities']
@@ -312,12 +443,36 @@ class Scores():
                 self.named_entities += termFreqDict[norm_token]
 
     def get_total(self, show=False, getVal=True):
+        '''
+        This method is used to retrieve the sum of the scoring
+        strategies.
+
+        show: bool
+            Flags whether or not to print the score.
+        getVal: bool
+            Flags whether or not to return also the scores
+
+        Returns
+        ------
+        float
+        '''
+
         if show:
             print('Tot Score = %0.4f' % self.get_total())
         if getVal:
             return sum(self.__dict__.values())
 
     def get_weighted_total(self, weights=[]):
+        '''
+        This method returns the weighted version of the scoring
+        strategies computed.
+
+        weights: list of floats
+            Is the list of scaling vectors to apply.
+            The number of weights to provide can be retrieved using
+            Dataset.get_num_weights()
+        '''
+
         if len(weights) != len(self.__dict__.values()):
             print('Incompatible shapes among input weights'
                   'and available scores')
@@ -327,14 +482,42 @@ class Scores():
         return sum(values * weights)
 
     def toJson(self):
+        '''
+        This method is used to return a .json serializable version
+        of the class.
+
+        Returns
+        -------
+        dict
+        '''
+
         return self.__dict__.copy()
 
     def from_dict(self, loaded_dict):
+        '''
+        This method is used to load the data of a loaded .json
+        file into the score class.
+
+        loaded_dict:
+            Dictionary of data having the class attributes
+        '''
+
         for key in loaded_dict:
             if key in self.__dict__:
                 self.__dict__[key] = loaded_dict[key]
 
     def print_total_scores(self, detail=True, total=True):
+        '''
+        This method is used to print the detailed scores contained in
+        the class.
+
+        detail: bool
+            Flags whether or not to print all the available scores.
+        total: bool
+            Flags whether or not to print the sum of all the scoring
+            strategies.
+        '''
+
         if detail:
             for key in self.__dict__:
                 print(key, '->', self.__dict__[key])
