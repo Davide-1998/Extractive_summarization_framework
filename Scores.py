@@ -181,7 +181,7 @@ class Scores():
             if token.casefold() in prop_noun_list:
                 self.proper_noun += tf_dict[token.casefold()]
 
-    def set_co_occour(self, attributes):  # Must be re-thought
+    def set_co_occour(self, attributes):
         '''
         This method is used to compute the Co Occurrence score.
 
@@ -307,7 +307,7 @@ class Scores():
         '''
 
         # Use tokenized version for summary and document's sentences
-        summary = attributes['tokenized_summary']  # Already casefold
+        summary = attributes['tokenized_summary']
         sentences = [x.tokenized for x in attributes['sentences'].values()]
 
         # Make both case-insensitive
@@ -358,7 +358,7 @@ class Scores():
         '''
 
         # Use tokenized version for summary and document's sentences
-        summary = attributes['tokenized_summary']  # Already casefold
+        summary = attributes['tokenized_summary']
         sentences = [x.tokenized for x in attributes['sentences'].values()]
         sents_not_in_summary = len(sentences) - len(summary)
 

@@ -481,6 +481,7 @@ class Dataset():
         lemma: bool
             Flags whether to use or not the lemma of the tokens
         '''
+
         list_of_sentences = []
         for sentence in spacy_object.sents:
             tokenized_sent = []

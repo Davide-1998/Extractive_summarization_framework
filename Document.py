@@ -82,9 +82,7 @@ class Document():
         if not isinstance(sent, list):
             print('Format type of input must be \'List\'')
             return
-        # if len(sent) == 1:
-        #     print('Warning: singleton {} detected!'.format(sent))
-        elif len(sent) == 0:  # Enforced in mathod above
+        elif len(sent) == 0:  # Enforced in method above
             print('Input sentence not eligible for adding operation, Ignored')
             return
         else:
@@ -138,11 +136,6 @@ class Document():
         if isinstance(rank, float) and isinstance(text, str):
             if text not in self.sentRanks:
                 self.sentRanks[text] = rank
-            # else:
-            #     self.sentRanks[text] += rank
-            #     print('Entry \"{}\" already exist in record, skipping.'
-            #           .format(text))
-                # Maybe try with accumulating them and see if rouge score up
         else:
             print('Expected text and rank to be of type string and float, but '
                   'got input of type {} and {}'.format(type(text), type(rank)))
