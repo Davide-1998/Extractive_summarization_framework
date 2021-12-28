@@ -442,44 +442,43 @@ class Scores():
             if norm_token in neList:
                 self.named_entities += termFreqDict[norm_token]
 
-    def get_total(self, show=False, getVal=True):
-        '''
-        This method is used to retrieve the sum of the scoring
-        strategies.
-
-        show: bool
-            Flags whether or not to print the score.
-        getVal: bool
-            Flags whether or not to return also the scores
-
-        Returns
-        ------
-        float
-        '''
-
-        if show:
-            print('Tot Score = %0.4f' % self.get_total())
-        if getVal:
-            return sum(self.__dict__.values())
-
-    def get_weighted_total(self, weights=[]):
+    def get_total(self, show=False, weights=[]):
         '''
         This method returns the weighted version of the scoring
         strategies computed.
+
+        show: bool
+            Flags whether or not to print the total score.
 
         weights: list of floats
             Is the list of scaling vectors to apply.
             The number of weights to provide can be retrieved using
             Dataset.get_num_weights()
+
+        Return
+        ------
+        float:
+            Sum of the weighted scores.
         '''
 
-        if len(weights) != len(self.__dict__.values()):
-            print('Incompatible shapes among input weights'
-                  'and available scores')
+        scores = list(self.__dict__.values())
 
-        values = np.array([x for x in self.__dict__.values()])
-        weights = np.array(weights)
-        return sum(values * weights)
+        if len(weights) == 0:  # No weights case
+            tot_score = sum(scores)
+            if show:
+                print('Tot Score = %0.4f' % tot_score)
+            return tot_score
+        else:  # Weighted case
+            if len(weights) != len(scores):
+                print('Incompatible shapes among input weights'
+                      'and available scores')
+
+            values = np.array(scores)
+            weights = np.array(weights)
+            weighted_sum = sum(values * weights)
+            if show:
+                print('Tot Score = %0.4f' % weighted_sum)
+            return weighted_sum
 
     def toJson(self):
         '''
