@@ -155,7 +155,7 @@ class Sentence():
         float
         '''
 
-        return self.scores.get_weighted_total(weights)
+        return self.scores.get_total(weights=weights)
 
     def text(self):
         '''

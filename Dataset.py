@@ -300,7 +300,7 @@ class Dataset():
                     self.add_sentenceRank(doc_id, norm_text, phrase.rank)
 
                 # Record named entities
-                self.add_namedEntities(tokenized_article, lemma)
+                self.add_namedEntities(tokenized_article)
 
                 # Similarity among sentences in same document
                 sent_sim = self.compute_sent_simm(doc_id, tokenized_article,
@@ -508,7 +508,7 @@ class Dataset():
         if not names:
             return len(Scores().__dict__)
         else:
-            return[x for x in Scores().__dict__.keys()]
+            return list(Scores().__dict__.keys())
 
     def summarization(self, weights=[], show_scores=False, show=False):
         '''
