@@ -554,7 +554,8 @@ class Dataset():
                     print('***{}***:\n{}'.format(key, summary))
         return summarized_dataset
 
-    def rouge_computation(self, n=2, weights=[], show=True, sentences=False):
+    def rouge_computation(self, n=2, weights=[], show=True, sentences=False,
+                          getSummary=False):
         '''
         Computes the rouge score for each sentence in the document.
 
@@ -571,6 +572,8 @@ class Dataset():
             Flags whether to print the results.
         sentences: bool
             Flags wheter to print the rouge score for each sentence.
+        getSummary: bool
+            Flags whether or not to return the summary produced
         '''
 
         if len(weights) == 0:
@@ -623,7 +626,10 @@ class Dataset():
         pd_results.loc['Mean'] = pd_results.mean()
         if show:
             print(pd_results)
-        return pd_results
+        if not getSummary:
+            return pd_results
+        else:
+            return pd_results, summarization
 
     def save(self, pathToFile=None):
         '''
