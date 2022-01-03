@@ -34,6 +34,7 @@ from Dataset import Dataset  # Import the local class
 ```python
 chosen_dataset = load_dataset(huggingface_dataset_name, dataset_version)
 ```
+Now the dataset is loaded and a dictionary is returned. The training part of the dataset will be used from now on.
 ## Build the data structure
 ```python
 myDataset = Dataset()
@@ -46,18 +47,22 @@ it is possible to use this syntax:
 myDataset.build_dataset(chosen_dataset['train'])
 ```
 This will populate the class structure and collect some relevant data of the provided documents.
-To run the score computation it's enough to call the previous method without arguments:  
+To run the score computation it is sufficient to call the previous method without arguments:  
 ```python
 myDataset.process_dataset()  # Performs only the sentence scoring computation
 ```
 ## Rouge score computation
 ```python
-myDataset.rouge_computation(show=True)  # Automatically computes Rouge-2 score and prints them
+myDataset.rouge_computation()  # Automatically computes Rouge-2 score and prints them
 ```
-This method will compute the Rouge-N score for each document summarized and will print the results.
+This method will compute the Rouge-N score for each document summarized and will print the results.  
+It will return a pandas dataframe with the results of the rouge-N scores for each document in the
+dataset. In the dataframe the last row is reserved for the mean values.
+If the flag: `getSummary=True` is passed as an argument, this method also returns the computed
+summary.
 
 ## Show summaries
-To observe the resultingsummarization for each document it is enough to run the command:  
+To observe the resulting summarization for each document it is enough to run the command:  
 ```python
 myDataset.summarization(show=True)
 ```
@@ -67,8 +72,9 @@ Use `myDataset.get_num_weights()` to retrieve the number of available scoring st
 weights list.
 
 ## Changing spacy pipeline
-The _Dataset_ class allows the user to change the spacy pipeline used during the computation. To do so, just call the method:  
+The _Dataset_ class allows the user to change the spacy model used during the computation. To do so, just call the method:  
 `myDataset.set_spacy_pipeline('en_core_web_md')`
+In this example the "en_core_web_md" is the name of the spacy model to use.
 Every downloaded spacy pipeline can be used, but just some of them have the sentence similarity feature.
 To check which spacy pipelines are downloaded in the system just run the command `spacy info`.  
 It is important to notice that **the pytextrank pipeline will be added to the chosen spacy pipeline**
