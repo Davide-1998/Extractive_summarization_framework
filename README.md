@@ -3,6 +3,12 @@ This repository contains all the code and the data necessary to run an extractiv
 summarization framework which exploits several scoring strategies to achieve a 
 good summary of the documents in the input dataset.
 
+# Files in the repository
+The files contains in this repository are:
+- The *.py modules which contain the code for the framework implemented.
+- The Extractive_summarization_2.ipynb which containing the code generating the results in the report.
+- The Extractive_summarization_2.pdf which is the report of the project.
+
 # Dataset
 The dataset used is the _CNN\_dailymail 3.0.0_ downloaded from
 [Huggingface](https://huggingface.co/datasets/cnn_dailymail).
