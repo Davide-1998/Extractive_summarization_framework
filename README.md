@@ -1,4 +1,4 @@
-# NLU final project
+# Extractive Summarization Framework
 This repository contains all the code and the data necessary to run an extractive
 summarization framework which exploits several scoring strategies to achieve a 
 good summary of the documents in the input dataset.
